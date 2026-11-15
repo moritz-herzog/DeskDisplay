@@ -25,6 +25,8 @@
   --md-sys-color-outline-variant: #43474E;
   --md-sys-color-error: #FFB4AB;
   --md-sys-color-on-error: #690005;
+  --task-overdue-bg: rgba(255, 82, 82, 0.28);
+  --task-today-bg: rgba(255, 193, 7, 0.24);
   --md-sys-color-error-container: #93000A;
   --md-sys-color-on-error-container: #FFDAD6;
   --md-sys-color-inverse-surface: #E1E2E8;
@@ -90,6 +92,8 @@
   --md-sys-color-outline-variant: #C3C6CF;
   --md-sys-color-error: #BA1A1A;
   --md-sys-color-on-error: #FFFFFF;
+  --task-overdue-bg: #FFC9C4;
+  --task-today-bg: #FFF1A8;
   --md-sys-color-error-container: #FFDAD6;
   --md-sys-color-on-error-container: #410002;
   --md-sys-color-inverse-surface: #2E3135;
@@ -354,8 +358,11 @@ main { flex: 1; min-height: 0; position: relative; }
   margin: 0 8px;
   padding: 10px 8px 10px 8px;
 }
-.task.subtask { padding-left: calc(8px + var(--depth, 1) * 24px); }
+/* Einrückung per Margin, damit Hintergrund und Trennlinie erst an der Einrückung beginnen */
+.task.subtask { margin-left: calc(8px + var(--depth, 1) * 24px); }
 .task + .task { border-top: 1px solid var(--md-sys-color-outline-variant); }
+.task.task-overdue { background: var(--task-overdue-bg); border-radius: 8px; }
+.task.task-today { background: var(--task-today-bg); border-radius: 8px; }
 .stripe { border-radius: var(--md-sys-shape-corner-full); background: var(--md-sys-color-outline); }
 .task[data-prio="4"] .stripe { background: var(--priority-4); }
 .task[data-prio="3"] .stripe { background: var(--priority-3); }
@@ -398,7 +405,7 @@ main { flex: 1; min-height: 0; position: relative; }
 .chip-due { color: var(--md-sys-color-on-surface); border-color: var(--md-sys-color-outline); }
 .chip-overdue {
   background: var(--md-sys-color-error-container);
-  border-color: transparent;
+  border-color: var(--md-sys-color-on-error-container);
   color: var(--md-sys-color-on-error-container);
 }
 

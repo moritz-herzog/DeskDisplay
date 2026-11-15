@@ -227,13 +227,20 @@
   }
 
   /** Fälligkeits-Chip: Text relativ zu heute (deutsch). */
+  function dueDayDiff(task) {
+    var due = task.due;
+    if (!due) return null;
+    var p = parseDay(due.date || (due.datetime || '').slice(0, 10));
+    return p ? p.dn - today().dn : null;
+  }
+
   function dueText(task) {
     var due = task.due;
     if (!due) return null;
     var ds = due.date || (due.datetime || '').slice(0, 10);
     var p = parseDay(ds);
     if (!p) return due.string || null;
-    var diff = p.dn - today().dn;
+    var diff = dueDayDiff(task);
     var txt;
     if (diff === 0) txt = 'Heute';
     else if (diff === 1) txt = 'Morgen';
@@ -306,6 +313,12 @@
       tasks.forEach(function (t) {
         var row = el('div', 'task');
         row.setAttribute('data-prio', String(t.priority >= 1 && t.priority <= 4 ? t.priority : 1));
+        // Überfällig -> rot, heute fällig -> gelb (überfällig hat Vorrang)
+        // Tagesvergleich zusätzlich zum Backend-Flag: nach Mitternacht ohne frische Daten korrekt
+        var dayDiff = dueDayDiff(t);
+        var overdue = !!t.overdue || (dayDiff !== null && dayDiff < 0);
+        if (overdue) row.className += ' task-overdue';
+        else if (dayDiff === 0) row.className += ' task-today';
         if (t.depth > 0) {
           row.className += ' subtask';
           row.style.setProperty('--depth', String(Math.min(t.depth, 4)));
@@ -320,7 +333,7 @@
         if (dt) {
           var rec = t.due && t.due.is_recurring;
           var ico = t.due && t.due.datetime ? 'schedule' : (rec ? 'repeat' : null);
-          chips.appendChild(chip(t.overdue ? 'chip-due chip-overdue' : 'chip-due', dt, ico));
+          chips.appendChild(chip(overdue ? 'chip-due chip-overdue' : 'chip-due', dt, ico));
         }
         (t.labels || []).forEach(function (l) { chips.appendChild(chip('', String(l))); });
         if (chips.childNodes.length) body.appendChild(chips);
