@@ -54,6 +54,8 @@ def test_project_order_and_task_shape():
     assert [p["name"] for p in out] == ["Inbox", "Arbeit"]  # child_order
     t = out[1]["tasks"][0]
     assert set(t) == {"id", "content", "description", "priority", "labels", "overdue", "due"}
+    assert set(out[1]) == {"id", "name", "section", "parent", "color", "tasks"}
+    assert out[1]["section"] is None and out[1]["parent"] is None
     assert t["due"] == {"date": "2026-11-15", "datetime": None, "string": "heute", "is_recurring": False}
     assert out[0]["tasks"][0]["due"] is None
 
@@ -71,6 +73,71 @@ def test_project_filter_by_name():
     assert [p["name"] for p in out] == ["Arbeit"]
     with pytest.raises(TodoistError):
         build_projects(tasks, PROJECTS, TZ, NOW, project_name="Gibt es nicht")
+
+
+TREE = [
+    {"id": "r2", "name": "Arbeit", "color": "blue", "child_order": 2, "parent_id": None},
+    {"id": "r1", "name": "Privat", "color": "red", "child_order": 1, "parent_id": None},
+    {"id": "c2", "name": "Kunde B", "color": "blue", "child_order": 2, "parent_id": "r2"},
+    {"id": "c1", "name": "Kunde A", "color": "blue", "child_order": 1, "parent_id": "r2"},
+    {"id": "g1", "name": "Enkel", "color": "green", "child_order": 0, "parent_id": "c1"},
+]
+
+
+def test_subprojects_included_with_project_filter():
+    tasks = [task(1, "a", project="r2"), task(2, "b", project="c1"), task(3, "c", project="g1"),
+             task(4, "d", project="r1")]
+    out = build_projects(tasks, TREE, TZ, NOW, project_name="arbeit")
+    assert [p["name"] for p in out] == ["Arbeit", "Kunde A", "Enkel"]
+    assert [p["parent"] for p in out] == [None, "Arbeit", "Kunde A"]
+
+
+def test_tree_order():
+    tasks = [task(i, "x", project=pid) for i, pid in enumerate(["g1", "c2", "r1", "c1", "r2", "unbekannt"])]
+    out = build_projects(tasks, TREE, TZ, NOW)
+    assert [p["name"] for p in out] == ["Privat", "Arbeit", "Kunde A", "Enkel", "Kunde B", "Unbekannt"]
+    assert out[-1]["parent"] is None
+
+
+SECTIONS = [
+    {"id": "s2", "project_id": "p1", "name": "Zweiter", "section_order": 2, "is_archived": False, "is_deleted": False},
+    {"id": "s1", "project_id": "p1", "name": "Erster", "section_order": 1, "is_archived": False, "is_deleted": False},
+    {"id": "sa", "project_id": "p1", "name": "Archiv", "section_order": 3, "is_archived": True, "is_deleted": False},
+]
+
+
+def test_sections_become_tiles():
+    tasks = [task(1, "in s2", section_id="s2"), task(2, "in s1", section_id="s1"), task(3, "ohne"),
+             task(4, "leer", section_id=""), task(5, "in Arbeit", project="p2")]
+    out = build_projects(tasks, PROJECTS, TZ, NOW, sections=SECTIONS)
+    assert [(p["id"], p["name"], p["section"]) for p in out] == [
+        ("p1", "Inbox", None), ("p1:s1", "Inbox", "Erster"), ("p1:s2", "Inbox", "Zweiter"), ("p2", "Arbeit", None)]
+    assert [t["content"] for t in out[0]["tasks"]] == ["ohne", "leer"]
+
+
+def test_unknown_or_archived_section_falls_back_to_project():
+    tasks = [task(1, "archiviert", section_id="sa"), task(2, "unbekannt", section_id="nix")]
+    out = build_projects(tasks, PROJECTS, TZ, NOW, sections=SECTIONS)
+    assert len(out) == 1 and out[0]["id"] == "p1" and out[0]["section"] is None
+    assert len(out[0]["tasks"]) == 2
+
+
+def test_refresh_fetches_sections_and_builds_tiles():
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        if request.url.path.endswith("projects"):
+            return httpx.Response(200, json={"results": PROJECTS, "next_cursor": None})
+        if request.url.path.endswith("sections"):
+            return httpx.Response(200, json={"results": SECTIONS, "next_cursor": None})
+        return httpx.Response(200, json={"results": [task(1, "x", section_id="s1"), task(2, "y")],
+                                         "next_cursor": None})
+
+    svc = make_service(handler)
+    asyncio.run(svc.refresh())
+    assert "/api/v1/sections" in paths
+    assert [p["id"] for p in svc.snapshot()["projects"]] == ["p1", "p1:s1"]
 
 
 def make_service(handler, **cfg):
@@ -91,6 +158,8 @@ def test_pagination_with_cursor_and_auth():
         path = request.url.path
         if path == "/api/v1/projects":
             return httpx.Response(200, json={"results": PROJECTS, "next_cursor": None})
+        if path == "/api/v1/sections":
+            return httpx.Response(200, json={"results": [], "next_cursor": None})
         assert path == "/api/v1/tasks"
         cursor = request.url.params.get("cursor")
         if cursor is None:
@@ -116,6 +185,8 @@ def test_filter_uses_filter_endpoint():
         paths.append((request.url.path, request.url.params.get("query")))
         if request.url.path.endswith("projects"):
             return httpx.Response(200, json={"results": PROJECTS, "next_cursor": None})
+        if request.url.path.endswith("sections"):
+            return httpx.Response(200, json={"results": [], "next_cursor": None})
         return httpx.Response(200, json={"results": [task(1, "x")], "next_cursor": None})
 
     svc = make_service(handler, filter="today | overdue")
@@ -131,6 +202,8 @@ def test_error_keeps_old_cache_and_sets_stale():
             return httpx.Response(500)
         if request.url.path.endswith("projects"):
             return httpx.Response(200, json={"results": PROJECTS, "next_cursor": None})
+        if request.url.path.endswith("sections"):
+            return httpx.Response(200, json={"results": [], "next_cursor": None})
         return httpx.Response(200, json={"results": [task(1, "alt")], "next_cursor": None})
 
     svc = make_service(handler)

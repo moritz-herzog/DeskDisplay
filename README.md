@@ -15,7 +15,7 @@ Ein Touch-Dashboard für einen Raspberry Pi im Kiosk-Betrieb. Es zeigt Todoist-A
 
 ## Überblick
 
-- **Aufgaben:** offene Todoist-Aufgaben, gruppiert nach Projekt, mit Priorität und Fälligkeit.
+- **Aufgaben:** offene Todoist-Aufgaben, gruppiert nach Projekt (inkl. Unterprojekte); jeder Abschnitt eines Projekts erhält eine eigene Kachel. Mit Priorität und Fälligkeit.
 - **Kalender:** Tagesansicht als Zeitleiste mit „Jetzt“-Strich und Liste der nächsten Tage (Quelle: veröffentlichte ICS-Datei).
 - **Status:** automatisch aus dem Kalender (Termin läuft = Beschäftigt) oder manuell per Button, bis wieder „Auto“ gewählt wird.
 - **Offline-fähig:** keine CDNs, Schriften und Icons liegen lokal; bei Ausfall einer Quelle bleiben die zuletzt geladenen Daten sichtbar.
@@ -101,7 +101,7 @@ Der Pfad kann mit der Umgebungsvariablen `DASHBOARD_CONFIG` überschrieben werde
 
 - `token`: persönlicher API-Token. Zu finden in Todoist unter **Einstellungen → Integrationen → Entwickler** (Web-Oberfläche). Token kopieren und in `config.yaml` eintragen. Den Token niemals weitergeben oder einchecken.
 - `filter` (optional): Todoist-Filterausdruck, z. B. `today | overdue`. Leer = alle offenen Aufgaben.
-- `project` (optional): nur ein Projekt (Name).
+- `project` (optional): nur ein Projekt (Name) samt aller Unterprojekte.
 - `refresh_seconds`, `timeout_seconds`: Abrufintervall und Zeitlimit.
 
 **`calendar`**
@@ -312,7 +312,7 @@ Das Backend lauscht standardmäßig nur auf `127.0.0.1`.
 
 | Methode und Pfad | Zweck |
 |---|---|
-| `GET /api/tasks` | Aufgaben nach Projekt |
+| `GET /api/tasks` | Aufgaben als Kacheln je Projekt bzw. Abschnitt (`id`, `name`, `section`, `parent`, `color`, `tasks`) |
 | `GET /api/calendar` | Kalendertage (heute + `days_ahead`) |
 | `GET /api/availability` | aktueller Status |
 | `POST /api/availability` | Status setzen: `{"mode": "auto"}` oder `{"mode": "manual", "status": "free\|busy\|dnd"}` (ungültig: HTTP 422) |

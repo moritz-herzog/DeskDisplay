@@ -320,8 +320,13 @@ main { flex: 1; min-height: 0; position: relative; }
   padding: 4px 16px;
 }
 .proj-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--md-sys-color-outline); }
+.card-titlebox { flex: 1; min-width: 0; }
+.card-path {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .card-title {
-  flex: 1;
   min-width: 0;
   font-size: var(--md-sys-typescale-title-medium-size);
   font-weight: 500;

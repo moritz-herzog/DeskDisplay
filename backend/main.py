@@ -40,9 +40,9 @@ class MockTodoistService:
 
     def snapshot(self, now: datetime | None = None) -> dict:
         now = (now or datetime.now(self.tz)).astimezone(self.tz)
-        tasks, projects = mock_todoist_raw(now)
+        tasks, projects, sections = mock_todoist_raw(now)
         return {"updated_at": (self.updated_at or now).isoformat(), "stale": False, "error": None,
-                "projects": build_projects(tasks, projects, self.tz, now)}
+                "projects": build_projects(tasks, projects, self.tz, now, sections=sections)}
 
     def health(self) -> dict:
         return {"last_success": self.updated_at.isoformat() if self.updated_at else None, "last_error": None}

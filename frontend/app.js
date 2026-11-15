@@ -295,7 +295,11 @@
       var dot = el('span', 'proj-dot');
       if (PROJECT_COLORS[proj.color]) dot.style.background = PROJECT_COLORS[proj.color];
       head.appendChild(dot);
-      head.appendChild(el('div', 'card-title', proj.name || ''));
+      var titleBox = el('div', 'card-titlebox');
+      var pathParts = [proj.parent, proj.section ? proj.name : null].filter(function (x) { return !!x; });
+      if (pathParts.length) titleBox.appendChild(el('div', 'card-path', pathParts.join(' › ')));
+      titleBox.appendChild(el('div', 'card-title', proj.section || proj.name || ''));
+      head.appendChild(titleBox);
       head.appendChild(el('span', 'count', String(tasks.length)));
       card.appendChild(head);
 

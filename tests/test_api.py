@@ -24,11 +24,11 @@ def test_tasks_contract(client):
     data = r.json()
     assert set(data) == {"updated_at", "stale", "error", "projects"}
     assert data["stale"] is False and data["error"] is None
-    assert 3 <= len(data["projects"]) <= 5
+    assert 5 <= len(data["projects"]) <= 8
     tasks = [t for p in data["projects"] for t in p["tasks"]]
     assert len(tasks) >= 10
     for p in data["projects"]:
-        assert set(p) == {"id", "name", "color", "tasks"} and p["tasks"]
+        assert set(p) == {"id", "name", "section", "parent", "color", "tasks"} and p["tasks"]
         for t in p["tasks"]:
             assert set(t) == {"id", "content", "description", "priority", "labels", "overdue", "due"}
             assert t["priority"] in (1, 2, 3, 4)

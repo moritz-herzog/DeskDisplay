@@ -10,7 +10,7 @@ server:
 todoist:
   token: "DEIN_TOKEN"           # Todoist > Einstellungen > Integrationen > Entwickler
   filter: ""                    # optional, Todoist-Filterausdruck, z. B. "today | overdue"
-  project: ""                   # optional, Projektname (nur dieses Projekt anzeigen)
+  project: ""                   # optional, Projektname (nur dieses Projekt inkl. Unterprojekte anzeigen)
   refresh_seconds: 120
   timeout_seconds: 10
 
