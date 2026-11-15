@@ -860,6 +860,128 @@
   }
 
   // ------------------------------------------------------------------
+  // Pull-Down-Panel (Schnelleinstellungen)
+  // ------------------------------------------------------------------
+  /*
+   * Wischen nach unten in der App-Bar öffnet das Panel, es folgt dem Finger
+   * (translateY). Die Geste startet erst nach SLOP px überwiegend vertikaler
+   * Bewegung; vorher bleibt ein Tipp auf Buttons ein normaler Klick.
+   * Einrasten: Öffnen ab 35 % Höhe oder 0,5 px/ms nach unten; Schließen ab
+   * 25 % Weg oder 0,5 px/ms nach oben.
+   */
+  function loadNetwork() {
+    var ul = $('net-list');
+    fetch('/api/network', { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (d) {
+      ul.textContent = '';
+      var list = (d && d.interfaces) || [];
+      if (!list.length) { ul.appendChild(el('li', 'none', 'Keine Verbindung')); return; }
+      list.forEach(function (i) {
+        var li = el('li');
+        li.appendChild(el('span', 'if', i.name + ' – '));
+        li.appendChild(document.createTextNode(i.address));
+        ul.appendChild(li);
+      });
+    }).catch(function () {
+      ul.textContent = '';
+      ul.appendChild(el('li', 'none', 'Netzwerk nicht verfügbar'));
+    });
+  }
+
+  function initPullDown() {
+    var SLOP = 8, OPEN_FRAC = 0.35, CLOSE_FRAC = 0.25, FLING = 0.5;
+    var panel = $('qs-panel'), scrim = $('qs-scrim'), bar = document.querySelector('header.appbar');
+    var isOpen = false, g = null, swallow = false;
+
+    function height() { return panel.offsetHeight || 1; }
+
+    function place(y, animate) {            // y: -h (zu) … 0 (offen)
+      var h = height();
+      panel.classList[animate ? 'add' : 'remove']('anim');
+      scrim.classList[animate ? 'add' : 'remove']('anim');
+      panel.style.transform = 'translateY(' + y + 'px)';
+      scrim.style.opacity = String(Math.max(0, Math.min(1, 1 + y / h)));
+    }
+
+    function settle(open) {
+      isOpen = open;
+      panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+      place(open ? 0 : -height(), true);
+      if (open) loadNetwork();
+      else setTimeout(function () {
+        if (!isOpen && !g) { panel.style.visibility = ''; scrim.hidden = true; }
+      }, 240);
+    }
+
+    function show() {
+      panel.style.visibility = 'visible';
+      scrim.hidden = false;
+    }
+
+    function start(e, opening) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, y: e.clientY, t: Date.now(),
+            v: 0, active: false, el: e.currentTarget, base: isOpen ? 0 : -height(), opening: opening };
+    }
+
+    bar.addEventListener('pointerdown', function (e) { if (!isOpen) start(e, true); });
+    panel.addEventListener('pointerdown', function (e) { if (isOpen) start(e, false); });
+
+    document.addEventListener('pointermove', function (e) {
+      if (!g || e.pointerId !== g.id) return;
+      var dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+      if (!g.active) {
+        if (Math.abs(dy) < SLOP || Math.abs(dy) < Math.abs(dx)) return;
+        if (g.opening ? dy < 0 : dy > 0) { g = null; return; }   // falsche Richtung: keine Geste
+        g.active = true;
+        g.y0 = e.clientY; g.y = e.clientY; g.t = Date.now();     // ab hier folgt das Panel
+        document.body.classList.add('dragging');
+        try { g.el.setPointerCapture(g.id); } catch (err) { /* egal */ }
+        if (g.opening) show();
+        place(g.base, false);
+        return;
+      }
+      var y = Math.max(-height(), Math.min(0, g.base + (e.clientY - g.y0)));
+      place(y, false);
+      var now = Date.now(), dt = now - g.t;
+      if (dt > 0) { g.v = 0.7 * ((e.clientY - g.y) / dt) + 0.3 * g.v; g.y = e.clientY; g.t = now; }
+      S.lastTouch = now;
+      e.preventDefault();
+    });
+
+    function finish(e, cancelled) {
+      if (!g || e.pointerId !== g.id) return;
+      var d = g; g = null;
+      if (!d.active) return;
+      document.body.classList.remove('dragging');
+      try { d.el.releasePointerCapture(d.id); } catch (err) { /* egal */ }
+      swallow = true;
+      setTimeout(function () { swallow = false; }, 0);
+      var h = height();
+      var y = Math.max(-h, Math.min(0, d.base + (e.clientY - d.y0)));
+      var v = Date.now() - d.t > 80 ? 0 : d.v;    // Finger stand vor dem Loslassen still
+      var open;
+      if (cancelled) open = isOpen;
+      else if (d.opening) open = v > FLING || (h + y) / h > OPEN_FRAC;
+      else open = !(v < -FLING || -y / h > CLOSE_FRAC);
+      settle(open);
+    }
+    document.addEventListener('pointerup', function (e) { finish(e, false); });
+    document.addEventListener('pointercancel', function (e) { finish(e, true); });
+    document.addEventListener('click', function (e) {
+      if (swallow) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+
+    scrim.addEventListener('click', function () { settle(false); });
+    $('qs-close').addEventListener('click', function () { settle(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen) settle(false); });
+    window.addEventListener('resize', function () { if (!isOpen) place(-height(), false); });
+    place(-height(), false);
+  }
+
+  // ------------------------------------------------------------------
   // Uhr
   // ------------------------------------------------------------------
   function tickClock() {
@@ -898,6 +1020,7 @@
       S.idleHandled = false;
     }, true);
     initDragScroll();
+    initPullDown();
 
     document.querySelectorAll('.seg-btn').forEach(function (b) {
       b.addEventListener('click', function () { setView(b.getAttribute('data-view')); });

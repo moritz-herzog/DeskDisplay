@@ -18,6 +18,7 @@ from .availability import AvailabilityStore, compute_status
 from .calendar_ics import CalendarService, build_days
 from .config import PROJECT_ROOT, Config, ConfigError, load_config
 from .mock_data import mock_calendar_events, mock_todoist_raw
+from .network import get_interfaces
 from .mqtt_publisher import MqttPublisher, NullPublisher
 from .todoist_client import TodoistService, build_projects
 
@@ -264,6 +265,10 @@ def create_app(config: Config | None = None) -> FastAPI:
         d = ctx_of().cfg.display
         return {"default_view": d.default_view, "return_after_seconds": d.return_after_seconds,
                 "theme": d.theme, "priority_colors": d.priority_colors, "status_colors": d.status_colors}
+
+    @app.get("/api/network")
+    async def api_network():
+        return {"interfaces": await asyncio.to_thread(get_interfaces)}
 
     @app.get("/api/health")
     async def api_health():

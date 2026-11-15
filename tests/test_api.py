@@ -155,3 +155,21 @@ def test_example_config_is_valid_with_placeholders_replaced():
     raw["todoist"]["token"] = "abc"
     cfg = Config.from_dict(raw)
     assert cfg.calendar.days_ahead == 5 and cfg.mqtt.topic == "dashboard/availability"
+
+
+def test_network_endpoint(client, monkeypatch):
+    fake = [{"name": "wlan0", "address": "192.168.1.23", "family": "ipv4"},
+            {"name": "eth0", "address": "2001:db8::1", "family": "ipv6"}]
+    monkeypatch.setattr("backend.main.get_interfaces", lambda: fake)
+    r = client.get("/api/network")
+    assert r.status_code == 200
+    assert r.json() == {"interfaces": fake}
+
+
+def test_network_real_structure(client):
+    data = client.get("/api/network").json()
+    assert set(data) == {"interfaces"}
+    for i in data["interfaces"]:
+        assert set(i) == {"name", "address", "family"}
+        assert i["family"] in ("ipv4", "ipv6")
+        assert i["name"] != "lo" and not i["address"].startswith("127.")

@@ -307,6 +307,10 @@ pytest
 mosquitto_sub -h <pi> -u esp -P '<passwort>' -t 'dashboard/#' -v
 ```
 
+## Schnelleinstellungen (Pull-Down)
+
+Vom oberen Rand bzw. der App-Bar nach unten wischen (Touch oder Maus) öffnet das Panel mit Anwesenheitsstatus (Auto/Frei/Beschäftigt/Nicht stören) und Netzwerk-Adressen. Schließen: nach oben wischen, auf den abgedunkelten Hintergrund tippen, den Schließen-Button oder Esc.
+
 ## REST-API
 
 Das Backend lauscht standardmäßig nur auf `127.0.0.1`.
@@ -318,6 +322,7 @@ Das Backend lauscht standardmäßig nur auf `127.0.0.1`.
 | `GET /api/availability` | aktueller Status |
 | `POST /api/availability` | Status setzen: `{"mode": "auto"}` oder `{"mode": "manual", "status": "free\|busy\|dnd"}` (ungültig: HTTP 422) |
 | `GET /api/settings` | Anzeige-Einstellungen für das Frontend |
+| `GET /api/network` | IP-Adressen des Geräts: `{"interfaces": [{"name": "wlan0", "address": "192.168.1.23", "family": "ipv4"}]}` (ohne Loopback, IPv4 zuerst) |
 | `GET /api/health` | Zustand von Todoist, Kalender, MQTT |
 | `GET /` | Oberfläche |
 

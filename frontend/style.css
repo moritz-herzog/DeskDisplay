@@ -181,6 +181,19 @@ body.dragging, body.dragging * { cursor: grabbing; }
   gap: var(--gutter);
   padding: 0 var(--gutter) 0 16px;
   background: var(--md-sys-color-surface-container);
+  position: relative;
+  touch-action: none;            /* vertikales Wischen gehört der Pull-Down-Geste (app.js) */
+}
+/* Griff: Hinweis, dass man herunterziehen kann */
+.pull-grip {
+  position: absolute;
+  left: 50%; bottom: 4px;
+  width: 36px; height: 4px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: var(--md-sys-color-outline);
+  opacity: .6;
+  pointer-events: none;
 }
 
 .clock-block {
@@ -296,11 +309,46 @@ body.dragging, body.dragging * { cursor: grabbing; }
 }
 .status-btn.is-busy-request { opacity: .75; }
 
-@media (max-width: 899px) {
-  .status-btn { padding: 0 12px; gap: 6px; }
-  .status-btn .lbl { display: none; }           /* nur Icon … */
-  .status-btn.is-active .lbl { display: inline; } /* … aktiver zeigt Label */
+/* ---------- Schnelleinstellungen (Pull-Down) ---------- */
+.qs-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, .55);
+  opacity: 0;
+  z-index: 20;
+  touch-action: none;
 }
+.qs-panel {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding: 8px 16px 0;
+  background: var(--md-sys-color-surface-container);
+  border-radius: 0 0 28px 28px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+  transform: translateY(-100%);
+  visibility: hidden;
+  z-index: 21;
+  touch-action: none;
+}
+.qs-scrim.anim { transition: opacity .22s ease; }
+.qs-panel.anim { transition: transform .22s ease; }
+.qs-head { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
+.qs-head h2 { font-size: 22px; }
+.qs-close { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.qs-section { padding: 4px 0 12px; }
+.qs-section h3 {
+  margin: 0 0 8px;
+  font-size: var(--md-sys-typescale-label-large-size);
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.qs-panel .status-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.qs-panel .status-btn { position: relative; }
+.net-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.net-list li { font-variant-numeric: tabular-nums; }
+.net-list .if, .net-list .none { color: var(--md-sys-color-on-surface-variant); }
+.qs-handle { width: 36px; height: 4px; margin: 4px auto 8px; border-radius: 2px; background: var(--md-sys-color-outline); opacity: .6; }
 
 /* ---------- Hauptbereich ---------- */
 main { flex: 1; min-height: 0; position: relative; }
