@@ -30,10 +30,11 @@ def test_tasks_contract(client):
     for p in data["projects"]:
         assert set(p) == {"id", "name", "section", "parent", "color", "tasks"} and p["tasks"]
         for t in p["tasks"]:
-            assert set(t) == {"id", "content", "description", "priority", "labels", "overdue", "due"}
+            assert set(t) == {"id", "content", "description", "priority", "labels", "overdue", "due", "depth"}
             assert t["priority"] in (1, 2, 3, 4)
             if t["due"] is not None:
                 assert set(t["due"]) == {"date", "datetime", "string", "is_recurring"}
+    assert any(t["depth"] > 0 for t in tasks)
     assert any(t["overdue"] for t in tasks)
     assert any(t["due"] is None for t in tasks)
     assert {t["priority"] for t in tasks} == {1, 2, 3, 4}

@@ -53,7 +53,8 @@ def test_project_order_and_task_shape():
     out = build_projects(tasks, PROJECTS, TZ, NOW)
     assert [p["name"] for p in out] == ["Inbox", "Arbeit"]  # child_order
     t = out[1]["tasks"][0]
-    assert set(t) == {"id", "content", "description", "priority", "labels", "overdue", "due"}
+    assert set(t) == {"id", "content", "description", "priority", "labels", "overdue", "due", "depth"}
+    assert t["depth"] == 0
     assert set(out[1]) == {"id", "name", "section", "parent", "color", "tasks"}
     assert out[1]["section"] is None and out[1]["parent"] is None
     assert t["due"] == {"date": "2026-11-15", "datetime": None, "string": "heute", "is_recurring": False}
@@ -221,3 +222,66 @@ def test_unauthorized_message():
     svc = make_service(lambda r: httpx.Response(401))
     asyncio.run(svc.refresh())
     assert "Token" in svc.snapshot()["error"]
+
+
+def _flat(out, project="Inbox"):
+    return [(t["content"], t["depth"]) for p in out if p["name"] == project and p["section"] is None
+            for t in p["tasks"]]
+
+
+def test_subtasks_directly_after_parent_even_if_overdue():
+    tasks = [
+        task(1, "Eltern", due=d("2026-11-16")),
+        task(2, "Kind überfällig", due=d("2026-11-10"), parent_id="1"),
+        task(3, "andere", due=d("2026-11-17")),
+    ]
+    out = build_projects(tasks, PROJECTS, TZ, NOW)
+    assert _flat(out) == [("Eltern", 0), ("Kind überfällig", 1), ("andere", 0)]
+
+
+def test_sibling_order_and_depth_two():
+    tasks = [
+        task(1, "Eltern"),
+        task(2, "Kind spät", due=d("2026-11-20"), parent_id="1"),
+        task(3, "Kind früh", due=d("2026-11-16"), parent_id="1"),
+        task(4, "Enkel", parent_id="3"),
+        task(5, "Wurzel 2", due=d("2026-11-30")),
+    ]
+    out = build_projects(tasks, PROJECTS, TZ, NOW)
+    assert _flat(out) == [("Wurzel 2", 0), ("Eltern", 0), ("Kind früh", 1), ("Enkel", 2), ("Kind spät", 1)]
+
+
+def test_orphans_become_roots():
+    sections = [{"id": "s1", "project_id": "p1", "name": "Abschnitt", "section_order": 1,
+                 "is_archived": False, "is_deleted": False}]
+    tasks = [
+        task(1, "unbekannter Elternteil", parent_id="999"),
+        task(2, "Elternteil erledigt", parent_id="3"),
+        task(3, "erledigt", checked=True),
+        task(4, "Eltern im Abschnitt", section_id="s1"),
+        task(5, "Kind in Projektkachel", parent_id="4"),
+    ]
+    out = build_projects(tasks, PROJECTS, TZ, NOW, sections=sections)
+    assert sorted(_flat(out)) == sorted([("unbekannter Elternteil", 0), ("Elternteil erledigt", 0),
+                                         ("Kind in Projektkachel", 0)])
+    sec = [p for p in out if p["section"] == "Abschnitt"][0]
+    assert [(t["content"], t["depth"]) for t in sec["tasks"]] == [("Eltern im Abschnitt", 0)]
+
+
+def test_cycles_do_not_loop_or_lose_tasks():
+    tasks = [
+        task(1, "selbst", parent_id="1"),
+        task(2, "A", parent_id="3", order=1),
+        task(3, "B", parent_id="2", order=2),
+        task(4, "normal"),
+    ]
+    out = build_projects(tasks, PROJECTS, TZ, NOW)
+    ids = [t["id"] for t in out[0]["tasks"]]
+    assert sorted(ids) == ["1", "2", "3", "4"]
+    assert all(t["depth"] >= 0 for t in out[0]["tasks"])
+
+
+def test_subtasks_with_integer_ids():
+    tasks = [{**task(1, "Eltern"), "id": 1}, {**task(2, "Kind"), "id": 2, "parent_id": 1}]
+    out = build_projects(tasks, PROJECTS, TZ, NOW)
+    assert _flat(out) == [("Eltern", 0), ("Kind", 1)]

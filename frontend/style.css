@@ -354,6 +354,7 @@ main { flex: 1; min-height: 0; position: relative; }
   margin: 0 8px;
   padding: 10px 8px 10px 8px;
 }
+.task.subtask { padding-left: calc(8px + var(--depth, 1) * 24px); }
 .task + .task { border-top: 1px solid var(--md-sys-color-outline-variant); }
 .stripe { border-radius: var(--md-sys-shape-corner-full); background: var(--md-sys-color-outline); }
 .task[data-prio="4"] .stripe { background: var(--priority-4); }

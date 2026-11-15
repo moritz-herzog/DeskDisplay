@@ -108,6 +108,48 @@ def _tree_order(projects: list[dict]) -> list[str]:
     return order
 
 
+def _nest(entries: list[tuple]) -> list[dict]:
+    """Ordnet die Aufgaben einer Kachel in Anzeigereihenfolge und setzt `depth`.
+
+    `entries` sind `(sort_key, item, parent_id)`. Jede Aufgabe steht direkt vor ihrem
+    gesamten Teilbaum (Tiefensuche); Wurzeln und Geschwister folgen jeweils dem `sort_key`.
+    Eine Aufgabe ist nur dann Unteraufgabe, wenn ihr Elternteil in derselben Kachel liegt;
+    sonst ist sie eine Wurzel (`depth` 0) und geht nie verloren. Zyklen (z. B. A -> B -> A
+    oder eigener Elternteil) werden aufgebrochen: Jede Aufgabe erscheint genau einmal.
+    """
+    ordered = sorted(entries, key=lambda e: e[0])
+    ids = {e[1]["id"] for e in ordered}
+    children: dict[str, list[dict]] = {}
+    roots: list[dict] = []
+    for _, item, parent in ordered:
+        parent = str(parent) if parent else None
+        if parent and parent in ids and parent != item["id"]:
+            children.setdefault(parent, []).append(item)
+        else:
+            roots.append(item)
+
+    out: list[dict] = []
+    seen: set[int] = set()
+
+    def walk(root: dict) -> None:
+        stack = [(root, 0)]
+        while stack:
+            item, depth = stack.pop()
+            if id(item) in seen:
+                continue
+            seen.add(id(item))
+            item["depth"] = depth
+            out.append(item)
+            stack.extend((c, depth + 1) for c in reversed(children.get(item["id"], [])))
+
+    for r in roots:
+        walk(r)
+    for _, item, _ in ordered:  # nur durch Zyklen unerreichbare Aufgaben
+        if id(item) not in seen:
+            walk(item)
+    return out
+
+
 def build_projects(tasks: list[dict], projects: list[dict], tz: ZoneInfo, now: datetime,
                    project_name: str = "", sections: list[dict] | None = None) -> list[dict]:
     """Rohdaten -> Kachelliste laut API-Vertrag (sortiert, ohne leere Kacheln).
@@ -117,6 +159,9 @@ def build_projects(tasks: list[dict], projects: list[dict], tz: ZoneInfo, now: d
     archiviertem bzw. gelöschtem) Abschnitt landen in der Projektkachel. Reihenfolge: Projekte
     in Baumreihenfolge (Unterprojekte direkt nach ihrem Elternprojekt), je Projekt zuerst die
     Kachel ohne Abschnitt, dann die Abschnitte nach `section_order`.
+    Unteraufgaben (`parent_id`) stehen direkt unter ihrer Elternaufgabe derselben Kachel
+    (`depth` 1, 2, ...; Wurzeln `depth` 0); fehlt der Elternteil in der Kachel, gilt die
+    Aufgabe als Wurzel. Die Aufgabenliste bleibt flach, in Anzeigereihenfolge.
     Mit `project_name` werden das gleichnamige Projekt und alle Unterprojekte berücksichtigt.
     """
     now = now.astimezone(tz)
@@ -135,7 +180,7 @@ def build_projects(tasks: list[dict], projects: list[dict], tz: ZoneInfo, now: d
             continue
         sec_by_id[str(s["id"])] = s
 
-    groups: dict[tuple[str, str | None], list[tuple]] = {}
+    groups: dict[tuple[str, str | None], list[tuple]] = {}  # -> (sort_key, item, parent_id)
     for t in tasks:
         if t.get("checked") or t.get("is_deleted"):
             continue
@@ -163,7 +208,7 @@ def build_projects(tasks: list[dict], projects: list[dict], tz: ZoneInfo, now: d
         pid = str(t.get("project_id"))
         sid = str(t["section_id"]) if t.get("section_id") else None
         sec = sec_by_id.get(sid) if sid else None
-        groups.setdefault((pid, str(sec["id"]) if sec is not None else None), []).append((key, item))
+        groups.setdefault((pid, str(sec["id"]) if sec is not None else None), []).append((key, item, t.get("parent_id")))
 
     tree = {pid: i for i, pid in enumerate(_tree_order(projects))}
 
@@ -177,7 +222,7 @@ def build_projects(tasks: list[dict], projects: list[dict], tz: ZoneInfo, now: d
     result = []
     for pid, sid in sorted(groups, key=tile_order):
         p = by_id.get(pid)
-        items = [it for _, it in sorted(groups[(pid, sid)], key=lambda x: x[0])]
+        items = _nest(groups[(pid, sid)])
         parent_p = by_id.get(str(p["parent_id"])) if p and p.get("parent_id") else None
         result.append({
             "id": pid if sid is None else f"{pid}:{sid}",

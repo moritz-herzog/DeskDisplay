@@ -306,6 +306,10 @@
       tasks.forEach(function (t) {
         var row = el('div', 'task');
         row.setAttribute('data-prio', String(t.priority >= 1 && t.priority <= 4 ? t.priority : 1));
+        if (t.depth > 0) {
+          row.className += ' subtask';
+          row.style.setProperty('--depth', String(Math.min(t.depth, 4)));
+        }
         row.appendChild(el('span', 'stripe'));
         var body = el('div', 'task-body');
         body.appendChild(el('div', 'task-content', t.content || ''));
