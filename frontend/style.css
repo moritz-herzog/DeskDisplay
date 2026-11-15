@@ -151,6 +151,8 @@ h2 { margin: 0; font-weight: 500; }
   -webkit-overflow-scrolling: touch;
 }
 .view-tasks::-webkit-scrollbar, .panel-scroll::-webkit-scrollbar { display: none; }
+/* Während des Wisch-Scrollens per Maus-Emulation (siehe app.js) */
+body.dragging, body.dragging * { cursor: grabbing; }
 
 /* State Layer (Pressed-Zustand per :active, kein Hover) */
 .state { position: relative; overflow: hidden; }

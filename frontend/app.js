@@ -619,6 +619,85 @@
   }
 
   // ------------------------------------------------------------------
+  // Wisch-Scrollen ohne echte Touch-Events
+  // ------------------------------------------------------------------
+  /*
+   * Liefert der Touchscreen im Kiosk/Vollbild nur Maus-Events (z. B. labwc-
+   * Mausemulation oder Chromium ohne Touch-Erkennung), scrollt der Browser beim
+   * Ziehen nicht von selbst. Dann übernimmt dieses Ziehen-zum-Scrollen inkl.
+   * Nachlauf. Echte Touch-Eingaben (pointerType "touch") scrollt der Browser
+   * weiterhin nativ.
+   */
+  function initDragScroll() {
+    var SLOP = 6;            // px, ab hier gilt die Geste als Wischen
+    var drag = null, raf = 0, swallowClick = false;
+
+    function scrollerOf(node) {
+      return node && node.closest ? node.closest('.view-tasks, .panel-scroll') : null;
+    }
+
+    function end(e, fling) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var d = drag;
+      drag = null;
+      if (!d.moved) return;
+      document.body.classList.remove('dragging');
+      try { d.sc.releasePointerCapture(d.id); } catch (err) { /* egal */ }
+      swallowClick = true;
+      setTimeout(function () { swallowClick = false; }, 0);
+      if (!fling || Date.now() - d.t > 80) return;    // Finger stand vor dem Loslassen still
+      var v = d.v, last = Date.now();                 // px/ms
+      (function step() {
+        var now = Date.now(), dt = now - last;
+        last = now;
+        var before = d.sc.scrollTop;
+        d.sc.scrollTop = before - v * dt;
+        v *= Math.pow(0.995, dt);
+        if (Math.abs(v) > 0.03 && d.sc.scrollTop !== before) raf = requestAnimationFrame(step);
+      })();
+    }
+
+    document.addEventListener('pointerdown', function (e) {
+      cancelAnimationFrame(raf);                      // Antippen stoppt den Nachlauf
+      drag = null;
+      if (e.pointerType === 'touch' || e.button !== 0) return;
+      var sc = scrollerOf(e.target);
+      if (!sc || sc.scrollHeight <= sc.clientHeight) return;
+      drag = { sc: sc, id: e.pointerId, y0: e.clientY, top0: sc.scrollTop,
+               moved: false, y: e.clientY, t: Date.now(), v: 0 };
+    });
+
+    document.addEventListener('pointermove', function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var dy = e.clientY - drag.y0;
+      if (!drag.moved) {
+        if (Math.abs(dy) < SLOP) return;
+        drag.moved = true;
+        document.body.classList.add('dragging');
+        try { drag.sc.setPointerCapture(drag.id); } catch (err) { /* egal */ }
+      }
+      drag.sc.scrollTop = drag.top0 - dy;
+      var now = Date.now(), dt = now - drag.t;
+      if (dt > 0) {
+        drag.v = 0.7 * ((e.clientY - drag.y) / dt) + 0.3 * drag.v;
+        drag.y = e.clientY;
+        drag.t = now;
+      }
+      S.lastTouch = now;                              // Wischen hält den Rückkehr-Timer an
+      e.preventDefault();
+    });
+
+    document.addEventListener('pointerup', function (e) { end(e, true); });
+    document.addEventListener('pointercancel', function (e) { end(e, false); });
+    // Nach einem Wisch keinen Klick auslösen
+    document.addEventListener('click', function (e) {
+      if (swallowClick) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+    // Kein natives Drag&Drop (würde das Wischen abbrechen)
+    document.addEventListener('dragstart', function (e) { e.preventDefault(); });
+  }
+
+  // ------------------------------------------------------------------
   // Uhr
   // ------------------------------------------------------------------
   function tickClock() {
@@ -655,6 +734,7 @@
       S.lastTouch = Date.now();
       S.idleHandled = false;
     }, true);
+    initDragScroll();
 
     document.querySelectorAll('.seg-btn').forEach(function (b) {
       b.addEventListener('click', function () { setView(b.getAttribute('data-view')); });
