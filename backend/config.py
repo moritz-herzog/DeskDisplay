@@ -225,8 +225,8 @@ class Config:
             return_after_seconds=get_int(d, "display", "return_after_seconds", 120, 0),
             theme=get_str(d, "display", "theme", "dark"),
         )
-        if display.default_view not in ("tasks", "calendar"):
-            errors.append(f"'display.default_view' muss 'tasks' oder 'calendar' sein (gefunden: {display.default_view!r}).")
+        if display.default_view not in ("tasks", "calendar", "summary"):
+            errors.append(f"'display.default_view' muss 'tasks', 'calendar' oder 'summary' sein (gefunden: {display.default_view!r}).")
         if display.theme not in ("dark", "light"):
             errors.append(f"'display.theme' muss 'dark' oder 'light' sein (gefunden: {display.theme!r}).")
         for key, defaults, allowed in (

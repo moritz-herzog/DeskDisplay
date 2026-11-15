@@ -12,6 +12,8 @@
   var WD_LONG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
   var MON_SHORT = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.'];
 
+  var PRIO_NAME = { 4: 'Priorität 1', 3: 'Priorität 2', 2: 'Priorität 3', 1: 'Priorität 4' };
+
   var STATUS_NAME = { free: 'Frei', busy: 'Beschäftigt', dnd: 'Nicht stören' };
 
   // Todoist-Projektfarben (Name -> Hex)
@@ -53,7 +55,7 @@
     idleHandled: false,
     posting: 0,               // laufende POSTs (Polling überspringt dann Verfügbarkeit)
     postSeq: 0,
-    sig: { tasks: '', calendar: '' },
+    sig: { tasks: '', calendar: '', summary: '' },
     lastMinute: '',
     lastDayKey: ''
   };
@@ -223,6 +225,7 @@
       S.tasks = d;
       markOk('tasks');
       renderTasks();
+      renderSummary();
     }).catch(function () { markFail('tasks'); });
   }
 
@@ -355,6 +358,7 @@
       if (d.timezone && d.timezone !== S.tz) { S.tz = d.timezone; S.sig.tasks = ''; renderTasks(); }
       markOk('calendar');
       renderCalendar();
+      renderSummary();
     }).catch(function () { markFail('calendar'); });
   }
 
@@ -531,6 +535,138 @@
   }
 
   // ------------------------------------------------------------------
+  // Tagesübersicht
+  // ------------------------------------------------------------------
+  /** Sortierschlüssel für die Uhrzeit einer Aufgabe (ohne Uhrzeit -> ans Ende). */
+  function dueTimeKey(task) {
+    var dt = task.due && task.due.datetime;
+    return (dt && timeOfDatetime(dt)) || '99:99';
+  }
+
+  /** Alle heute fälligen und überfälligen Aufgaben, nach Wichtigkeit sortiert. */
+  function summaryTasks() {
+    var out = [];
+    ((S.tasks && S.tasks.projects) || []).forEach(function (proj) {
+      (proj.tasks || []).forEach(function (t) {
+        var diff = dueDayDiff(t);
+        var overdue = !!t.overdue || (diff !== null && diff < 0);
+        if (!overdue && diff !== 0) return;
+        out.push({
+          t: t,
+          proj: proj,
+          prio: t.priority >= 1 && t.priority <= 4 ? t.priority : 1,
+          overdue: overdue,
+          diff: diff === null ? 0 : diff,
+          time: dueTimeKey(t)
+        });
+      });
+    });
+    // Priorität absteigend; dann überfällig (älteste zuerst); dann Uhrzeit; dann Titel
+    out.sort(function (a, b) {
+      return (b.prio - a.prio) ||
+        ((b.overdue ? 1 : 0) - (a.overdue ? 1 : 0)) ||
+        (a.diff - b.diff) ||
+        (a.time < b.time ? -1 : a.time > b.time ? 1 : 0) ||
+        String(a.t.content || '').localeCompare(String(b.t.content || ''), 'de');
+    });
+    return out;
+  }
+
+  function renderSummary() {
+    var t = today();
+    var nowMin = t.h * 60 + t.mi;
+    var cal = S.calendar;
+    var todayEntry = null;
+    ((cal && cal.days) || []).forEach(function (d) { if (d.date === t.key) todayEntry = d; });
+    var evs = (todayEntry && todayEntry.events) || [];
+    var items = summaryTasks();
+    var sig = JSON.stringify(evs) + '|' +
+      JSON.stringify(items.map(function (x) { return [x.t, x.proj.name, x.proj.section, x.proj.color]; })) +
+      '|' + t.key + '|' + nowMin + '|' + !!cal + '|' + !!S.tasks;
+    if (sig === S.sig.summary) return;
+    S.sig.summary = sig;
+
+    // --- Termine als Liste
+    var evBox = $('sum-events');
+    evBox.textContent = '';
+    $('sum-events-title').textContent = 'Termine · ' + fmtDayLong(t);
+    var nowMs = Date.now();
+    var sorted = evs.slice().sort(function (a, b) {
+      if (!!a.all_day !== !!b.all_day) return a.all_day ? -1 : 1;
+      return new Date(a.start) - new Date(b.start);
+    });
+    if (!cal) evBox.appendChild(el('div', 'sum-empty', 'Kalender wird geladen …'));
+    else if (!sorted.length) evBox.appendChild(el('div', 'sum-empty', 'Heute keine Termine'));
+    sorted.forEach(function (ev) {
+      var s = new Date(ev.start).getTime(), e = new Date(ev.end).getTime();
+      var running = !ev.all_day && s <= nowMs && nowMs < e;
+      var cls = 'sum-ev' + (ev.busy === false ? ' free' : '');
+      if (!ev.all_day && e <= nowMs) cls += ' past';
+      else if (running) cls += ' current';
+      var row = el('div', cls);
+      var time = el('div', 'sum-ev-time');
+      if (ev.all_day) {
+        time.appendChild(el('div', null, 'ganztägig'));
+      } else {
+        time.appendChild(el('div', null, fmtHM(new Date(ev.start))));
+        time.appendChild(el('div', 'end', fmtHM(new Date(ev.end))));
+      }
+      row.appendChild(time);
+      row.appendChild(el('span', 'sum-ev-bar'));
+      var body = el('div', 'sum-ev-body');
+      body.appendChild(el('div', 'sum-ev-title', ev.title || '(ohne Titel)'));
+      var sub = [];
+      if (running) sub.push('läuft gerade');
+      if (ev.location) sub.push(ev.location);
+      if (sub.length) body.appendChild(el('div', 'sum-ev-sub', sub.join(' · ')));
+      row.appendChild(body);
+      evBox.appendChild(row);
+    });
+
+    // --- Aufgaben, gruppiert nach Priorität
+    var tBox = $('sum-tasks');
+    tBox.textContent = '';
+    $('sum-tasks-title').textContent = 'Aufgaben heute' + (items.length ? ' · ' + items.length : '');
+    if (!S.tasks) tBox.appendChild(el('div', 'sum-empty', 'Aufgaben werden geladen …'));
+    else if (!items.length) tBox.appendChild(el('div', 'sum-empty', 'Für heute ist nichts fällig'));
+    var lastPrio = null;
+    items.forEach(function (x) {
+      if (x.prio !== lastPrio) {
+        lastPrio = x.prio;
+        var h = el('div', 'sum-prio-head');
+        h.setAttribute('data-prio', String(x.prio));
+        var ic = el('span');
+        setIcon(ic, 'flag', 16);
+        h.appendChild(ic);
+        h.appendChild(el('span', null, PRIO_NAME[x.prio]));
+        tBox.appendChild(h);
+      }
+      var row = el('div', 'task sum-task' + (x.overdue ? ' task-overdue' : ''));
+      row.setAttribute('data-prio', String(x.prio));
+      row.appendChild(el('span', 'stripe'));
+      var body = el('div', 'task-body');
+      body.appendChild(el('div', 'task-content', x.t.content || ''));
+      var chips = el('div', 'chips');
+      var dt = dueText(x.t);
+      if (dt) {
+        var ico = x.t.due && x.t.due.datetime ? 'schedule' : (x.t.due && x.t.due.is_recurring ? 'repeat' : null);
+        chips.appendChild(chip(x.overdue ? 'chip-due chip-overdue' : 'chip-due', dt, ico));
+      }
+      var pname = [x.proj.name, x.proj.section].filter(function (v) { return !!v; }).join(' › ');
+      if (pname) {
+        var pc = chip('chip-proj', pname);
+        var dot = el('span', 'proj-dot');
+        if (PROJECT_COLORS[x.proj.color]) dot.style.background = PROJECT_COLORS[x.proj.color];
+        pc.insertBefore(dot, pc.firstChild);
+        chips.appendChild(pc);
+      }
+      body.appendChild(chips);
+      row.appendChild(body);
+      tBox.appendChild(row);
+    });
+  }
+
+  // ------------------------------------------------------------------
   // Verfügbarkeit / Status
   // ------------------------------------------------------------------
   function loadAvailability() {
@@ -612,16 +748,25 @@
     S.view = v;
     $('view-tasks').hidden = v !== 'tasks';
     $('view-calendar').hidden = v !== 'calendar';
+    $('view-summary').hidden = v !== 'summary';
     document.querySelectorAll('.seg-btn').forEach(function (b) {
       b.setAttribute('aria-selected', b.getAttribute('data-view') === v ? 'true' : 'false');
     });
     if (v === 'calendar') { renderCalendar(); scrollToNow(); $('next-scroll').scrollTop = 0; }
+    if (v === 'summary') renderSummary();
+  }
+
+  function defaultView() {
+    var v = S.settings.default_view;
+    return v === 'calendar' || v === 'summary' ? v : 'tasks';
   }
 
   function onIdle() {
-    setView(S.settings.default_view === 'calendar' ? 'calendar' : 'tasks');
+    setView(defaultView());
     $('view-tasks').scrollTop = 0;
     $('next-scroll').scrollTop = 0;
+    $('sum-events-scroll').scrollTop = 0;
+    $('sum-tasks-scroll').scrollTop = 0;
     // Zeitleiste: "Jetzt" statt ganz oben, sonst wäre die Gegenwart verdeckt
     if (S.view === 'calendar') scrollToNow(); else $('timeline-scroll').scrollTop = 0;
   }
@@ -730,6 +875,7 @@
       dEl.appendChild(document.createTextNode(fmtDate(z)));
       if (S.calendar) renderCalendar();   // verschiebt die Jetzt-Linie (bzw. baut bei Tageswechsel neu)
       if (S.tasks) renderTasks();         // "Heute/Morgen" bei Tageswechsel
+      renderSummary();                    // vergangene/laufende Termine, Tageswechsel
       if (S.avail) renderStatus();
     }
     checkIdle();
@@ -766,7 +912,7 @@
     setInterval(tickClock, 1000);
 
     loadSettings().then(function () {
-      setView(S.settings.default_view === 'calendar' ? 'calendar' : 'tasks');
+      setView(defaultView());
       loadTasks(); loadCalendar(); loadAvailability();
       setInterval(function () { loadTasks(); loadCalendar(); }, POLL_MS);
       setInterval(loadAvailability, POLL_AVAIL_MS);

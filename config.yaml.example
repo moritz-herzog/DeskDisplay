@@ -35,7 +35,7 @@ mqtt:
   heartbeat_seconds: 300
 
 display:
-  default_view: tasks           # tasks | calendar
+  default_view: tasks           # tasks | calendar | summary
   return_after_seconds: 120     # Rückkehr zur Standardansicht nach Inaktivität
   theme: dark                   # dark | light
   priority_colors: {p1: "#FF5A5F", p2: "#FFA94D", p3: "#5C9DFF", p4: "#8A8F98"}

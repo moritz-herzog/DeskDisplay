@@ -19,6 +19,9 @@
     </div>
 
     <nav class="segmented" role="tablist" aria-label="Ansicht">
+      <button class="seg-btn state" role="tab" data-view="summary" aria-selected="false">
+        <span data-icon="today"></span><span class="seg-label">Heute</span>
+      </button>
       <button class="seg-btn state" role="tab" data-view="tasks" aria-selected="true">
         <span data-icon="checklist"></span><span class="seg-label">Aufgaben</span>
       </button>
@@ -65,6 +68,26 @@
         <div class="panel-head"><h2>Nächste Tage</h2></div>
         <div class="panel-scroll" id="next-scroll">
           <div class="next-days" id="next-days"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tagesübersicht -->
+    <section class="view view-summary" id="view-summary" hidden>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="sum-events-title">Termine heute</h2>
+        </div>
+        <div class="panel-scroll" id="sum-events-scroll">
+          <div class="sum-list" id="sum-events"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="sum-tasks-title">Aufgaben heute</h2>
+        </div>
+        <div class="panel-scroll" id="sum-tasks-scroll">
+          <div class="sum-list" id="sum-tasks"></div>
         </div>
       </div>
     </section>

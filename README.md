@@ -17,6 +17,7 @@ Ein Touch-Dashboard für einen Raspberry Pi im Kiosk-Betrieb. Es zeigt Todoist-A
 
 - **Aufgaben:** offene Todoist-Aufgaben, gruppiert nach Projekt (inkl. Unterprojekte); jeder Abschnitt eines Projekts erhält eine eigene Kachel. Mit Priorität und Fälligkeit. Unteraufgaben werden eingerückt direkt unter ihrer Elternaufgabe angezeigt. Überfällige Aufgaben sind rot, heute fällige gelb unterlegt.
 - **Kalender:** Tagesansicht als Zeitleiste mit „Jetzt“-Strich und Liste der nächsten Tage (Quelle: veröffentlichte ICS-Datei).
+- **Heute:** Tagesübersicht mit den heutigen Terminen als Liste und allen heute fälligen bzw. überfälligen Aufgaben, sortiert nach Priorität (innerhalb einer Priorität: überfällig zuerst, dann nach Uhrzeit).
 - **Status:** automatisch aus dem Kalender (Termin läuft = Beschäftigt) oder manuell per Button, bis wieder „Auto“ gewählt wird.
 - **Offline-fähig:** keine CDNs, Schriften und Icons liegen lokal; bei Ausfall einer Quelle bleiben die zuletzt geladenen Daten sichtbar.
 
@@ -126,7 +127,7 @@ Der Pfad kann mit der Umgebungsvariablen `DASHBOARD_CONFIG` überschrieben werde
 
 **`display`**
 
-- `default_view` (`tasks` | `calendar`), `return_after_seconds` (Rückkehr zur Standardansicht nach Inaktivität), `theme` (`dark` | `light`), `priority_colors`, `status_colors`.
+- `default_view` (`tasks` | `calendar` | `summary`), `return_after_seconds` (Rückkehr zur Standardansicht nach Inaktivität), `theme` (`dark` | `light`), `priority_colors`, `status_colors`.
 
 Konfiguration testen (kurzer Start im Vordergrund, Abbruch mit Strg+C):
 
