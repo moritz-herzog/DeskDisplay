@@ -1,0 +1,19 @@
+[Unit]
+Description=Pi-Dashboard Backend (FastAPI)
+After=network-online.target mosquitto.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Benutzer und Pfade anpassen, falls nicht "pi" bzw. /home/pi/pi-dashboard
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/pi-dashboard
+Environment=PYTHONUNBUFFERED=1
+Environment=DASHBOARD_CONFIG=/home/pi/pi-dashboard/config.yaml
+ExecStart=/home/pi/pi-dashboard/.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

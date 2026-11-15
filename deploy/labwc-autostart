@@ -1,0 +1,10 @@
+# Kopieren nach ~/.config/labwc/autostart
+# (Datei kann leer/neu sein; die systemweite /etc/xdg/labwc/autostart wird
+#  weiterhin automatisch ausgefuehrt, sofern sie nicht ueberschrieben wird.)
+
+# Optional: Desktop-Leiste (Panel) fuer einen sauberen Kiosk ausblenden.
+# Dazu die folgende Zeile aktivieren (siehe README, Abschnitt "Panel ausblenden"):
+# pkill wf-panel-pi
+
+# Kiosk-Browser im Hintergrund starten
+/home/pi/pi-dashboard/deploy/kiosk.sh &

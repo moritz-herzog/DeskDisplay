@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi-Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Top App Bar: Uhr/Datum/Status | Umschalter | Status-Buttons -->
+  <header class="appbar">
+    <div class="clock-block">
+      <div class="clock" id="clock">--:--</div>
+      <div class="clock-meta">
+        <div class="date" id="date"></div>
+        <div class="status-line" id="status-line"></div>
+      </div>
+    </div>
+
+    <nav class="segmented" role="tablist" aria-label="Ansicht">
+      <button class="seg-btn state" role="tab" data-view="tasks" aria-selected="true">
+        <span data-icon="checklist"></span><span class="seg-label">Aufgaben</span>
+      </button>
+      <button class="seg-btn state" role="tab" data-view="calendar" aria-selected="false">
+        <span data-icon="calendar_month"></span><span class="seg-label">Kalender</span>
+      </button>
+    </nav>
+
+    <div class="status-buttons" role="group" aria-label="Status">
+      <button class="status-btn state" data-mode="auto" aria-label="Auto">
+        <span data-icon="autorenew"></span><span class="lbl">Auto</span>
+      </button>
+      <button class="status-btn state" data-mode="manual" data-status="free" aria-label="Frei">
+        <span data-icon="check_circle"></span><span class="lbl">Frei</span>
+      </button>
+      <button class="status-btn state" data-mode="manual" data-status="busy" aria-label="Beschäftigt">
+        <span data-icon="event_busy"></span><span class="lbl">Beschäftigt</span>
+      </button>
+      <button class="status-btn state" data-mode="manual" data-status="dnd" aria-label="Nicht stören">
+        <span data-icon="do_not_disturb_on"></span><span class="lbl">Nicht stören</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Aufgaben -->
+    <section class="view view-tasks" id="view-tasks">
+      <div class="tasks-grid" id="tasks-grid"></div>
+      <div class="empty-state" id="tasks-empty" hidden></div>
+    </section>
+
+    <!-- Kalender -->
+    <section class="view view-calendar" id="view-calendar" hidden>
+      <div class="panel panel-today">
+        <div class="panel-head">
+          <h2 id="today-title">Heute</h2>
+          <div class="allday" id="allday"></div>
+        </div>
+        <div class="panel-scroll" id="timeline-scroll">
+          <div class="timeline" id="timeline"></div>
+        </div>
+      </div>
+      <div class="panel panel-next">
+        <div class="panel-head"><h2>Nächste Tage</h2></div>
+        <div class="panel-scroll" id="next-scroll">
+          <div class="next-days" id="next-days"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Snackbar-artiger Hinweis -->
+  <div class="snackbar" id="snackbar" role="status" aria-live="polite" hidden></div>
+
+  <script src="icons.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

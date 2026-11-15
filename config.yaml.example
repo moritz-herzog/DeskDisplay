@@ -1,0 +1,42 @@
+# Konfiguration des Pi-Dashboards.
+# Kopieren nach config.yaml (oder Pfad per Umgebungsvariable DASHBOARD_CONFIG setzen).
+
+server:
+  host: 127.0.0.1               # nur lokal erreichbar (Kiosk-Browser auf dem Pi); 0.0.0.0 für Zugriff im Netz
+  port: 8080
+  state_file: state.json        # gespeicherter Modus (auto/manuell); relativ zum Ordner dieser Datei
+  mock: false                   # true = Beispieldaten ohne Todoist/Kalender/MQTT (Entwicklung)
+
+todoist:
+  token: "DEIN_TOKEN"           # Todoist > Einstellungen > Integrationen > Entwickler
+  filter: ""                    # optional, Todoist-Filterausdruck, z. B. "today | overdue"
+  project: ""                   # optional, Projektname (nur dieses Projekt anzeigen)
+  refresh_seconds: 120
+  timeout_seconds: 10
+
+calendar:
+  ics_url: "https://outlook.office365.com/owa/calendar/.../calendar.ics"   # veröffentlichter ICS-Link
+  refresh_seconds: 300
+  timeout_seconds: 15
+  days_ahead: 5                 # heute plus so viele Folgetage
+  timezone: "Europe/Berlin"     # Anzeigezone und Fallback für unbekannte TZIDs
+  day_start_hour: 7             # Zeitleiste von
+  day_end_hour: 20              # Zeitleiste bis
+  show_titles_in_status: true   # false = Label "Im Termin" statt Titel (Datenschutz)
+
+mqtt:
+  enabled: true                 # false = kein MQTT
+  host: localhost
+  port: 1883
+  username: dashboard
+  password: "DEIN_PASSWORT"
+  topic: dashboard/availability         # retained, QoS 1, JSON {"status","mode","until","label"}
+  online_topic: dashboard/online        # "true"/"false" (retained, Last Will)
+  heartbeat_seconds: 300
+
+display:
+  default_view: tasks           # tasks | calendar
+  return_after_seconds: 120     # Rückkehr zur Standardansicht nach Inaktivität
+  theme: dark                   # dark | light
+  priority_colors: {p1: "#FF5A5F", p2: "#FFA94D", p3: "#5C9DFF", p4: "#8A8F98"}
+  status_colors: {free: "#2E7D32", busy: "#C62828", dnd: "#6A1B9A"}
