@@ -15,6 +15,7 @@ todoist:
   timeout_seconds: 10
 
 calendar:
+  source: ics                   # ics = veröffentlichter ICS-Link | ews = direkt vom Exchange-Server (on-premise)
   ics_url: "https://outlook.office365.com/owa/calendar/.../calendar.ics"   # veröffentlichter ICS-Link
   refresh_seconds: 300
   timeout_seconds: 15
@@ -23,6 +24,16 @@ calendar:
   day_start_hour: 7             # Zeitleiste von
   day_end_hour: 20              # Zeitleiste bis
   show_titles_in_status: true   # false = Label "Im Termin" statt Titel (Datenschutz)
+  # Nur bei source: ews (dann wird ics_url nicht benötigt):
+  # ews:
+  #   server: mail.firma.de              # Hostname oder volle URL https://mail.firma.de/EWS/Exchange.asmx
+  #   autodiscover: false                # true = Server per Autodiscover suchen (statt server)
+  #   username: 'FIRMA\max.mustermann'   # DOMAIN\benutzer oder UPN (max.mustermann@firma.de)
+  #   password: "DEIN_PASSWORT"          # besser: Umgebungsvariable DASHBOARD_EWS_PASSWORD
+  #   email: max.mustermann@firma.de     # primäre SMTP-Adresse des Postfachs (Standard: username, falls UPN)
+  #   auth_type: ntlm                    # ntlm | basic
+  #   verify_ssl: true                   # false = Zertifikatsprüfung aus (nur zum Testen!)
+  #   ca_bundle: ""                      # optional: PEM-Datei der Firmen-CA (relativ zu dieser Datei)
 
 mqtt:
   enabled: true                 # false = kein MQTT

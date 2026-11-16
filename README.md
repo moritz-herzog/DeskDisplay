@@ -1,22 +1,23 @@
 # Raspberry-Pi-Dashboard
 
-Ein Touch-Dashboard für einen Raspberry Pi im Kiosk-Betrieb. Es zeigt Todoist-Aufgaben und den Exchange-/Outlook-Kalender an (Material Design 3, dunkles Theme) und bestimmt daraus einen Verfügbarkeitsstatus (**Frei / Beschäftigt / Nicht stören**). Der Status lässt sich per Touch übersteuern und wird per MQTT an ein externes Display-Gerät (z. B. ESP32 mit Statusanzeige) gesendet.
+Ein Touch-Dashboard für einen Raspberry Pi im Kiosk-Betrieb. Es zeigt Todoist-Aufgaben und den Exchange-/Outlook-Kalender (per ICS-Link oder direkt per EWS) an (Material Design 3, dunkles Theme) und bestimmt daraus einen Verfügbarkeitsstatus (**Frei / Beschäftigt / Nicht stören**). Der Status lässt sich per Touch übersteuern und wird per MQTT an ein externes Display-Gerät (z. B. ESP32 mit Statusanzeige) gesendet.
 
 ## Inhalt
 
 1. [Überblick](#überblick)
 2. [Voraussetzungen](#voraussetzungen)
 3. [Installation](#installation)
-4. [Entwicklung](#entwicklung)
-5. [MQTT-Schnittstelle](#mqtt-schnittstelle)
-6. [REST-API](#rest-api)
-7. [Fehlersuche](#fehlersuche)
-8. [Update](#update)
+4. [Kalender über Exchange (EWS)](#kalender-über-exchange-ews)
+5. [Entwicklung](#entwicklung)
+6. [MQTT-Schnittstelle](#mqtt-schnittstelle)
+7. [REST-API](#rest-api)
+8. [Fehlersuche](#fehlersuche)
+9. [Update](#update)
 
 ## Überblick
 
 - **Aufgaben:** offene Todoist-Aufgaben, gruppiert nach Projekt (inkl. Unterprojekte); jeder Abschnitt eines Projekts erhält eine eigene Kachel. Mit Priorität und Fälligkeit. Unteraufgaben werden eingerückt direkt unter ihrer Elternaufgabe angezeigt. Überfällige Aufgaben sind rot, heute fällige gelb unterlegt.
-- **Kalender:** Tagesansicht als Zeitleiste mit „Jetzt“-Strich und Liste der nächsten Tage (Quelle: veröffentlichte ICS-Datei).
+- **Kalender:** Tagesansicht als Zeitleiste mit „Jetzt“-Strich und Liste der nächsten Tage (Quelle: veröffentlichte ICS-Datei **oder** direkt der Exchange-Server per EWS, siehe `calendar.source`).
 - **Heute:** Tagesübersicht mit den heutigen Terminen als Liste und allen heute fälligen bzw. überfälligen Aufgaben, sortiert nach Priorität (innerhalb einer Priorität: überfällig zuerst, dann nach Uhrzeit).
 - **Status:** automatisch aus dem Kalender (Termin läuft = Beschäftigt) oder manuell per Button, bis wieder „Auto“ gewählt wird.
 - **Offline-fähig:** keine CDNs, Schriften und Icons liegen lokal; bei Ausfall einer Quelle bleiben die zuletzt geladenen Daten sichtbar.
@@ -26,8 +27,10 @@ Architektur:
 ```
 Todoist API ──┐                         ┌── Chromium (Kiosk, Touch)
               ├─► FastAPI-Backend ◄─────┤        http://127.0.0.1:8080
-Outlook ICS ──┘   (systemd-Dienst)      │
-                       │                 
+Outlook ICS ──┤   (systemd-Dienst)      │
+  oder        │                         │
+Exchange EWS ─┘                         │
+                       │
                        └─► Mosquitto (MQTT) ──► ESP / Display-Gerät im LAN
                               topic: dashboard/availability
 ```
@@ -40,9 +43,9 @@ Projektstruktur (Auszug): `backend/` (Server), `frontend/` (Oberfläche), `tests
 
 - Raspberry Pi (3B+ oder neuer empfohlen) mit **Raspberry Pi OS Bookworm (Desktop)**, 64 Bit, mit Wayland-Compositor **labwc** (Standard seit Ende 2024) und automatischer Anmeldung am Desktop (`sudo raspi-config` → System Options → Boot / Auto Login → Desktop Autologin).
 - Touchscreen (getestet für 800×480 und 1024×600).
-- Netzwerkzugang (WLAN/LAN) zum Pi; für Todoist und die Kalender-ICS ein Internetzugang.
+- Netzwerkzugang (WLAN/LAN) zum Pi; für Todoist ein Internetzugang; für die Kalender-ICS ebenfalls, bei Exchange per EWS genügt Netzwerkzugang zum Exchange-Server (LAN/VPN).
 - Python 3.11 (in Bookworm enthalten).
-- Todoist-Konto und ein Outlook-/Exchange-Kalender, der als ICS veröffentlicht werden darf (Administrator-Richtlinie beachten).
+- Todoist-Konto und ein Exchange-/Outlook-Kalender: entweder als ICS veröffentlichbar (Administrator-Richtlinie beachten) oder ein on-premise Exchange-Server mit aktiviertem EWS und eigenem Postfach-Zugang (Python-Paket `exchangelib`, wird mit `requirements.txt` installiert).
 
 ## Installation
 
@@ -107,7 +110,9 @@ Der Pfad kann mit der Umgebungsvariablen `DASHBOARD_CONFIG` überschrieben werde
 
 **`calendar`**
 
-- `ics_url`: Link zur veröffentlichten ICS-Datei. Erzeugen in **Outlook im Web → Einstellungen → Kalender → Freigegebene Kalender → Kalender veröffentlichen**:
+- `source`: `ics` (Standard, veröffentlichter ICS-Link) oder `ews` (direkt vom Exchange-Server, siehe [Kalender über Exchange (EWS)](#kalender-über-exchange-ews)). Bestehende Konfigurationen ohne `source` verhalten sich wie `ics`.
+- `ews`: Unterabschnitt mit den Zugangsdaten für `source: ews` (`server`, `autodiscover`, `username`, `password`, `email`, `auth_type`, `verify_ssl`, `ca_bundle`), siehe nächster Abschnitt. `ics_url` wird dann nicht benötigt.
+- `ics_url` (nur bei `source: ics`): Link zur veröffentlichten ICS-Datei. Erzeugen in **Outlook im Web → Einstellungen → Kalender → Freigegebene Kalender → Kalender veröffentlichen**:
   1. Kalender wählen, Berechtigung wählen, **Veröffentlichen**.
   2. Den **ICS-Link** kopieren (nicht den HTML-Link).
   - **Wichtig:** Die Berechtigung bestimmt den Inhalt. Bei **„Kann Titel, Ort sehen“** enthält die ICS Titel und Ort der Termine. Bei **„Nur Verfügbarkeit“** (Frei/Beschäftigt) fehlen die Titel; das Dashboard zeigt dann nur Zeitblöcke und „Im Termin“. Für Aufgaben-/Termintitel auf dem Display also „Titel, Ort“ wählen. Die ICS-URL ist für jeden mit dem Link lesbar: behandeln Sie sie vertraulich.
@@ -128,6 +133,12 @@ Der Pfad kann mit der Umgebungsvariablen `DASHBOARD_CONFIG` überschrieben werde
 **`display`**
 
 - `default_view` (`tasks` | `calendar` | `summary`), `return_after_seconds` (Rückkehr zur Standardansicht nach Inaktivität), `theme` (`dark` | `light`), `priority_colors`, `status_colors`.
+
+Kalender prüfen (ruft die Quelle einmal ab und listet die heutigen Termine; Exit-Code 0 = Erfolg):
+
+```bash
+.venv/bin/python -m backend --check-calendar
+```
 
 Konfiguration testen (kurzer Start im Vordergrund, Abbruch mit Strg+C):
 
@@ -242,6 +253,69 @@ Nach dem Start sollte das Dashboard automatisch im Vollbild erscheinen. Kontroll
 - Status-Buttons am Display bedienen, dann `mosquitto_sub -h <pi> -u esp -P '<passwort>' -t 'dashboard/#' -v` beobachten.
 - Backend kurz stoppen (`sudo systemctl stop pi-dashboard`): Das Dashboard zeigt „Keine Verbindung zum Pi-Backend“ und behält die Daten; nach `start` verschwindet der Hinweis.
 
+## Kalender über Exchange (EWS)
+
+Statt des ICS-Links kann das Dashboard den Kalender direkt von einem **on-premise Exchange-Server** abrufen (Exchange Web Services, Bibliothek `exchangelib`). Vorteile: kein Veröffentlichen des Kalenders nötig, Titel und Orte sind immer enthalten, Serientermine werden vom Server aufgelöst. Abgerufen werden heute und die nächsten `days_ahead` Tage.
+
+### Einrichtung
+
+In `config.yaml`:
+
+```yaml
+calendar:
+  source: ews
+  ews:
+    server: mail.firma.de                # oder volle URL, siehe unten
+    username: 'FIRMA\max.mustermann'     # oder UPN: max.mustermann@firma.de
+    password: "..."                      # besser per Umgebungsvariable, siehe unten
+    email: max.mustermann@firma.de       # primäre SMTP-Adresse des Postfachs
+    auth_type: ntlm                      # ntlm (Standard) | basic
+    verify_ssl: true
+    # ca_bundle: firmen-ca.pem
+```
+
+| Schlüssel | Bedeutung |
+|---|---|
+| `server` | Hostname (`mail.firma.de`) oder volle EWS-URL (`https://mail.firma.de/EWS/Exchange.asmx`). Alternativ `autodiscover: true`. |
+| `autodiscover` | `true` = Server über Autodiscover anhand von `email` suchen (dann ist `server` nicht nötig). Findet Autodiscover nichts, hilft meist der feste `server`. |
+| `username` | Zwei Formate: **`DOMAIN\benutzer`** (in YAML in einfache Anführungszeichen setzen, damit der Backslash erhalten bleibt) oder **UPN** (`benutzer@firma.de`). NTLM funktioniert in der Regel mit beiden; bei Problemen das jeweils andere Format testen. |
+| `password` | Kennwort. Alternativ Umgebungsvariable `DASHBOARD_EWS_PASSWORD` (überschreibt den Wert aus der Datei). |
+| `email` | Primäre SMTP-Adresse des Postfachs. Entfällt, wenn `username` bereits eine E-Mail-Adresse (UPN) ist. |
+| `auth_type` | `ntlm` (Standard bei on-premise) oder `basic`. |
+| `verify_ssl` | `false` schaltet die Zertifikatsprüfung ab (**nur zum Testen**; im Log erscheint eine Warnung). |
+| `ca_bundle` | Pfad zu einer PEM-Datei mit der Firmen-CA, relativ zur `config.yaml` oder absolut. Besser als `verify_ssl: false`. |
+
+Hinweis: `verify_ssl` und `ca_bundle` wirken in `exchangelib` prozessweit für alle EWS-Verbindungen des Backends.
+
+### Kennwort sicher ablegen
+
+- `chmod 600 config.yaml`, damit nur der Dienstbenutzer die Datei lesen kann.
+- Oder das Kennwort aus der Datei entfernen und als Umgebungsvariable setzen. Für den systemd-Dienst: Datei `/home/pi/pi-dashboard/dashboard.env` (`chmod 600`) mit dem Inhalt
+
+  ```
+  DASHBOARD_EWS_PASSWORD=mein-kennwort
+  ```
+
+  anlegen. `deploy/pi-dashboard.service` liest sie über `EnvironmentFile=-...` (das `-` bedeutet: fehlt die Datei, startet der Dienst trotzdem). Danach `sudo systemctl restart pi-dashboard`. Für die Kommandozeile: `DASHBOARD_EWS_PASSWORD=... .venv/bin/python -m backend --check-calendar`.
+
+### Prüfen mit `--check-calendar`
+
+```bash
+cd /home/pi/pi-dashboard
+.venv/bin/python -m backend --check-calendar
+```
+
+Der Befehl liest die Konfiguration, ruft den Kalender einmal ab und listet die heutigen Termine mit Zeit, Titel und Beschäftigt/Frei. Bei einem Fehler erscheint eine kurze deutsche Meldung und der Exit-Code ist 1. Funktioniert auch mit `source: ics`.
+
+### Fehlersuche (EWS)
+
+- **„Anmeldung fehlgeschlagen“ (HTTP 401):** Benutzername/Kennwort falsch, Konto gesperrt oder falsches Format. Beide Schreibweisen (`DOMAIN\benutzer` / UPN) und `auth_type` (`ntlm` / `basic`) ausprobieren; Anmeldung im Outlook im Web gegenprüfen. Bei Kennwörtern mit Sonderzeichen den Wert in Anführungszeichen setzen oder die Umgebungsvariable verwenden.
+- **„Zertifikatsfehler“:** Der Server nutzt ein Zertifikat einer internen CA, oder der Hostname passt nicht zum Zertifikat. Das CA-Zertifikat (PEM) auf den Pi kopieren und `ca_bundle` setzen; `server` muss dem Namen im Zertifikat entsprechen. `verify_ssl: false` nur vorübergehend zum Testen.
+- **„Server nicht erreichbar“ / „Zeitüberschreitung“:** Name, Port 443, Firewall/VPN prüfen (`curl -I https://mail.firma.de/EWS/Exchange.asmx` sollte 401 liefern, nicht „keine Verbindung“). Eventuell `timeout_seconds` erhöhen.
+- **EWS vom Administrator deaktiviert (z. B. 403 oder Fehler beim Verbinden):** Manche Organisationen sperren EWS oder erlauben es nur bestimmten Konten. Dann den Administrator fragen oder auf `source: ics` ausweichen.
+- **Autodiscover findet nichts:** `server` fest eintragen und `autodiscover` auf `false` lassen.
+- Bei Fehlern bleiben die zuletzt geladenen Termine sichtbar (Hinweis „veraltet“); Details im Log: `journalctl -u pi-dashboard -f`, Zustand unter `/api/health`.
+
 ## Entwicklung
 
 Das Dashboard läuft auch auf Windows, macOS und Linux ohne Pi:
@@ -339,6 +413,7 @@ curl -X POST http://127.0.0.1:8080/api/availability \
 - **Läuft das Backend?** `systemctl status pi-dashboard` und `curl http://127.0.0.1:8080/api/health` (zeigt `last_success` / `last_error` je Quelle).
 - **Chromium zeigt eine Fehlerseite (z. B. „Seite nicht erreichbar“):** Backend läuft nicht oder noch nicht. Dienst prüfen; Chromium wird von `kiosk.sh` neu gestartet, oder Seite per Touch/Neustart neu laden (`pkill chromium` löst einen Neustart durch die Schleife aus).
 - **Kein Kiosk nach Neustart:** Datei `~/.config/labwc/autostart` vorhanden? `kiosk.sh` ausführbar und mit LF-Zeilenenden? Manuell testen: `/home/pi/pi-dashboard/deploy/kiosk.sh`. Läuft der Desktop wirklich unter labwc/Wayland (`echo $XDG_SESSION_TYPE`)? Unter X11 den Flag `--ozone-platform=wayland` entfernen.
+- **Kalender über Exchange (EWS):** siehe [Fehlersuche (EWS)](#fehlersuche-ews) und `python -m backend --check-calendar`.
 - **Kalender: ICS 404 / 403:** Link ungültig oder Veröffentlichung widerrufen/nicht erlaubt. In Outlook im Web neu veröffentlichen und den neuen ICS-Link eintragen.
 - **Kalender ohne Titel:** Veröffentlichung steht auf „Nur Verfügbarkeit“; auf „Kann Titel, Ort sehen“ ändern.
 - **Todoist 401/403:** Token falsch oder widerrufen. Neu aus Todoist (Einstellungen → Integrationen → Entwickler) kopieren; keine Anführungszeichen-/Leerzeichenfehler in `config.yaml`.

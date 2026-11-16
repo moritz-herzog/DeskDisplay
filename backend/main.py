@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, model_validator
 
 from .availability import AvailabilityStore, compute_status
+from .calendar_ews import EwsCalendarService
 from .calendar_ics import CalendarService, build_days
 from .config import PROJECT_ROOT, Config, ConfigError, load_config
 from .mock_data import mock_calendar_events, mock_todoist_raw
@@ -54,6 +55,10 @@ class MockCalendarService:
         self.cfg, self.tz = cfg, tz
         self.updated_at: datetime | None = None
 
+    @property
+    def ready(self) -> bool:
+        return True
+
     async def refresh(self) -> None:
         self.updated_at = datetime.now(self.tz)
 
@@ -85,7 +90,8 @@ class AppContext:
             self.calendar = MockCalendarService(cfg.calendar, self.tz)
         else:
             self.todoist = TodoistService(cfg.todoist, self.tz)
-            self.calendar = CalendarService(cfg.calendar)
+            self.calendar = (EwsCalendarService(cfg.calendar) if cfg.calendar.source == "ews"
+                             else CalendarService(cfg.calendar))
         self.mqtt = MqttPublisher(cfg.mqtt) if cfg.mqtt_active else NullPublisher()
         self.tasks: list[asyncio.Task] = []
 
@@ -105,8 +111,7 @@ class AppContext:
     def calendar_ready(self) -> bool:
         """Kalender mindestens einmal abgerufen (erfolgreich oder fehlgeschlagen)?
         Verhindert, dass nach einem Neustart kurz "free" gesendet wird."""
-        cal = self.calendar
-        return getattr(cal, "ics_text", "") is not None or getattr(cal, "error", None) is not None
+        return bool(self.calendar.ready)
 
     def publish(self, force: bool = False) -> dict:
         data = self.status()

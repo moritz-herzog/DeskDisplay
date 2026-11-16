@@ -39,9 +39,27 @@ class TodoistConfig:
     timeout_seconds: int = 10
 
 
+EWS_AUTH_TYPES = ("ntlm", "basic")
+CALENDAR_SOURCES = ("ics", "ews")
+
+
+@dataclass
+class EwsConfig:
+    server: str = ""            # Hostname (mail.firma.de) oder volle EWS-URL
+    autodiscover: bool = False
+    username: str = ""          # DOMAIN\benutzer oder UPN
+    password: str = ""
+    email: str = ""             # primäre SMTP-Adresse des Postfachs
+    auth_type: str = "ntlm"     # ntlm | basic
+    verify_ssl: bool = True
+    ca_bundle: str = ""         # optional: Pfad zu einer PEM-Datei (aufgelöst, siehe Config.from_dict)
+
+
 @dataclass
 class CalendarConfig:
+    source: str = "ics"         # ics | ews
     ics_url: str = ""
+    ews: EwsConfig = field(default_factory=EwsConfig)
     refresh_seconds: int = 300
     timeout_seconds: int = 15
     days_ahead: int = 5
@@ -173,7 +191,34 @@ class Config:
 
         # --- calendar
         c = section("calendar", not mock)
+        source = get_str(c, "calendar", "source", "ics").lower()
+        if source not in CALENDAR_SOURCES:
+            errors.append(f"'calendar.source' muss 'ics' oder 'ews' sein (gefunden: {source!r}).")
+            source = "ics"
+        e = c.get("ews")
+        if e is None:
+            e = {}
+        elif not isinstance(e, dict):
+            errors.append("'calendar.ews' muss ein Objekt mit Einstellungen sein.")
+            e = {}
+        ews_username = get_str(e, "calendar.ews", "username", "")
+        ews_password = get_str(e, "calendar.ews", "password", "")
+        env_password = os.environ.get("DASHBOARD_EWS_PASSWORD")
+        if env_password:
+            ews_password = env_password
+        ews = EwsConfig(
+            server=get_str(e, "calendar.ews", "server", ""),
+            autodiscover=get_bool(e, "calendar.ews", "autodiscover", False),
+            username=ews_username,
+            password=ews_password,
+            email=get_str(e, "calendar.ews", "email", "") or (ews_username if "@" in ews_username else ""),
+            auth_type=get_str(e, "calendar.ews", "auth_type", "ntlm").lower(),
+            verify_ssl=get_bool(e, "calendar.ews", "verify_ssl", True),
+            ca_bundle=get_str(e, "calendar.ews", "ca_bundle", ""),
+        )
         calendar = CalendarConfig(
+            source=source,
+            ews=ews,
             ics_url=get_str(c, "calendar", "ics_url", ""),
             refresh_seconds=get_int(c, "calendar", "refresh_seconds", 300, 10),
             timeout_seconds=get_int(c, "calendar", "timeout_seconds", 15, 1),
@@ -185,11 +230,32 @@ class Config:
         )
         if calendar.ics_url.lower().startswith("webcal://"):
             calendar.ics_url = "https://" + calendar.ics_url[len("webcal://"):]
-        if not mock:
+        if not mock and source == "ics":
             if not calendar.ics_url:
                 errors.append("Pflichtfeld 'calendar.ics_url' fehlt oder ist leer.")
             elif not calendar.ics_url.lower().startswith(("http://", "https://")):
                 errors.append("'calendar.ics_url' muss mit https:// beginnen.")
+        if not mock and source == "ews":
+            if not ews.username:
+                errors.append("Pflichtfeld 'calendar.ews.username' fehlt oder ist leer (DOMAIN\\benutzer oder UPN).")
+            if not ews.password:
+                errors.append("Pflichtfeld 'calendar.ews.password' fehlt (oder Umgebungsvariable DASHBOARD_EWS_PASSWORD setzen).")
+            if not ews.email:
+                errors.append("Pflichtfeld 'calendar.ews.email' fehlt (primäre E-Mail-Adresse des Postfachs; "
+                              "nur optional, wenn 'username' eine E-Mail-Adresse ist).")
+            if not ews.server and not ews.autodiscover:
+                errors.append("'calendar.ews.server' fehlt: Servername (z. B. mail.firma.de) angeben "
+                              "oder 'calendar.ews.autodiscover: true' setzen.")
+            if ews.auth_type not in EWS_AUTH_TYPES:
+                errors.append(f"'calendar.ews.auth_type' muss 'ntlm' oder 'basic' sein (gefunden: {ews.auth_type!r}).")
+            if ews.ca_bundle:
+                ca = Path(ews.ca_bundle).expanduser()
+                if not ca.is_absolute():
+                    ca = (base_dir or PROJECT_ROOT) / ca
+                if not ca.is_file():
+                    errors.append(f"'calendar.ews.ca_bundle': Datei nicht gefunden: {ca}")
+                else:
+                    ews.ca_bundle = str(ca)
         try:
             ZoneInfo(calendar.timezone)
         except (ZoneInfoNotFoundError, ValueError, OSError):

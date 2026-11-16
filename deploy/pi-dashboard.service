@@ -11,6 +11,8 @@ Group=pi
 WorkingDirectory=/home/pi/pi-dashboard
 Environment=PYTHONUNBUFFERED=1
 Environment=DASHBOARD_CONFIG=/home/pi/pi-dashboard/config.yaml
+# Optional: Geheimnisse (z. B. DASHBOARD_EWS_PASSWORD=...) hier ablegen (chmod 600); das "-" erlaubt, dass die Datei fehlt
+EnvironmentFile=-/home/pi/pi-dashboard/dashboard.env
 ExecStart=/home/pi/pi-dashboard/.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8080
 Restart=always
 RestartSec=5

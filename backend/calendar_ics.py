@@ -148,24 +148,60 @@ def build_days(events: list[CalEvent], tz: ZoneInfo, today: date, days_ahead: in
     return result
 
 
-class CalendarService:
-    """Holt die ICS-Datei, cached den Text und liefert geparste Termine."""
+class CalendarBase:
+    """Gemeinsamer Zustand und Ausgabe aller Kalenderquellen (ICS, EWS)."""
 
-    def __init__(self, cfg, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, cfg):
         self.cfg = cfg  # CalendarConfig
         self.tz = ZoneInfo(cfg.timezone)
-        self._transport = transport
-        self.ics_text: str | None = None
         self.updated_at: datetime | None = None
         self.last_success: datetime | None = None
         self.error: str | None = None
         self.stale: bool = False
+        self._attempted: bool = False
+
+    def _now(self) -> datetime:
+        return datetime.now(self.tz)
+
+    @property
+    def ready(self) -> bool:
+        """Mindestens ein Abruf beendet (erfolgreich oder fehlgeschlagen)?"""
+        return self._attempted
+
+    def events(self, now: datetime | None = None) -> list[CalEvent]:
+        raise NotImplementedError
+
+    def snapshot(self, now: datetime | None = None) -> dict:
+        now = (now or self._now()).astimezone(self.tz)
+        return {
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "stale": self.stale,
+            "error": self.error,
+            "timezone": self.cfg.timezone,
+            "day_start_hour": self.cfg.day_start_hour,
+            "day_end_hour": self.cfg.day_end_hour,
+            "days": build_days(self.events(now), self.tz, now.date(), self.cfg.days_ahead),
+        }
+
+    def health(self) -> dict:
+        return {"last_success": self.last_success.isoformat() if self.last_success else None,
+                "last_error": self.error}
+
+
+class CalendarService(CalendarBase):
+    """Holt die ICS-Datei, cached den Text und liefert geparste Termine."""
+
+    def __init__(self, cfg, transport: httpx.AsyncBaseTransport | None = None):
+        super().__init__(cfg)
+        self._transport = transport
+        self.ics_text: str | None = None
         self._parsed: list[CalEvent] = []
         self._parsed_for: date | None = None
         self._parse_error: str | None = None
 
-    def _now(self) -> datetime:
-        return datetime.now(self.tz)
+    @property
+    def ready(self) -> bool:
+        return self._attempted or self.ics_text is not None or self.error is not None
 
     async def fetch_text(self) -> str:
         async with httpx.AsyncClient(timeout=self.cfg.timeout_seconds, follow_redirects=True,
@@ -175,6 +211,12 @@ class CalendarService:
             return resp.text
 
     async def refresh(self) -> None:
+        try:
+            await self._refresh()
+        finally:
+            self._attempted = True
+
+    async def _refresh(self) -> None:
         try:
             text = await self.fetch_text()
             if "BEGIN:VCALENDAR" not in text:
@@ -201,22 +243,6 @@ class CalendarService:
             except Exception as exc:  # noqa: BLE001
                 log.warning("Kalender neu parsen fehlgeschlagen: %s", exc)
         return self._parsed
-
-    def snapshot(self, now: datetime | None = None) -> dict:
-        now = (now or self._now()).astimezone(self.tz)
-        return {
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "stale": self.stale,
-            "error": self.error,
-            "timezone": self.cfg.timezone,
-            "day_start_hour": self.cfg.day_start_hour,
-            "day_end_hour": self.cfg.day_end_hour,
-            "days": build_days(self.events(now), self.tz, now.date(), self.cfg.days_ahead),
-        }
-
-    def health(self) -> dict:
-        return {"last_success": self.last_success.isoformat() if self.last_success else None,
-                "last_error": self.error}
 
 
 def _short_error(exc: Exception) -> str:
