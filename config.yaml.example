@@ -46,8 +46,9 @@ mqtt:
   heartbeat_seconds: 300
 
 display:
-  default_view: tasks           # tasks | calendar | summary
+  default_view: summary         # summary (Heute) | tasks | calendar
   return_after_seconds: 120     # Rückkehr zur Standardansicht nach Inaktivität
+  event_soon_minutes: 15        # Termine so viele Minuten vor Beginn gelb, laufende rot (0 = nur rot)
   theme: dark                   # dark | light
   priority_colors: {p1: "#FF5A5F", p2: "#FFA94D", p3: "#5C9DFF", p4: "#8A8F98"}
   status_colors: {free: "#2E7D32", busy: "#C62828", dnd: "#6A1B9A"}

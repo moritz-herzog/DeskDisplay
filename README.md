@@ -132,7 +132,7 @@ Der Pfad kann mit der Umgebungsvariablen `DASHBOARD_CONFIG` überschrieben werde
 
 **`display`**
 
-- `default_view` (`tasks` | `calendar` | `summary`), `return_after_seconds` (Rückkehr zur Standardansicht nach Inaktivität), `theme` (`dark` | `light`), `priority_colors`, `status_colors`.
+- `default_view` (`summary` = Heute, Standard | `tasks` | `calendar`), `return_after_seconds` (Rückkehr zur Standardansicht nach Inaktivität), `event_soon_minutes` (heutige Termine so viele Minuten vor Beginn gelb markieren, laufende Termine rot; Standard 15, 0 = nur rot), `theme` (`dark` | `light`), `priority_colors`, `status_colors`.
 
 Kalender prüfen (ruft die Quelle einmal ab und listet die heutigen Termine; Exit-Code 0 = Erfolg):
 

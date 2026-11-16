@@ -26,8 +26,9 @@
   };
 
   var DEFAULT_SETTINGS = {
-    default_view: 'tasks',
+    default_view: 'summary',
     return_after_seconds: 120,
+    event_soon_minutes: 15,
     theme: 'dark',
     priority_colors: {},
     status_colors: {}
@@ -46,7 +47,7 @@
     tasks: null,
     calendar: null,
     avail: null,
-    view: 'tasks',
+    view: 'summary',
     failing: {},              // Endpunkt -> true, wenn letzter Abruf fehlschlug
     lastContact: null,        // Date des letzten erfolgreichen Abrufs
     flash: null,              // kurzzeitige Meldung (z. B. POST-Fehler)
@@ -461,8 +462,8 @@
       var ev = x.ev;
       var top = (x.s - tl.startMin) / 60 * hh;
       var height = Math.max((x.e - x.s) / 60 * hh, 26) - 2;
-      var n = el('div', 'event' + (ev.busy === false ? ' free' : '') +
-        (new Date(ev.end).getTime() < nowMs ? ' past' : '') + (height < 44 ? ' short' : ''));
+      var n = el('div', 'event' + (ev.busy === false ? ' free' : '') + (height < 44 ? ' short' : ''));
+      n._ev = ev;
       n.style.top = (top + 1) + 'px';
       n.style.height = height + 'px';
       n.style.left = 'calc(' + (x.col / x.cols * 100) + '% + 1px)';
@@ -508,6 +509,13 @@
   /** "Jetzt"-Linie positionieren (jede Minute). */
   function updateNow() {
     var line = $('timeline');
+    // Termine einfärben: gelb kurz vor Beginn, rot während des Termins
+    var nowMs = Date.now();
+    line.querySelectorAll('.event').forEach(function (n) {
+      if (!n._ev) return;
+      var phase = eventPhase(n._ev, nowMs);
+      ['past', 'soon', 'current'].forEach(function (c) { n.classList.toggle(c, c === phase); });
+    });
     var old = line.querySelector('.now-line');
     if (old) old.remove();
     if (!S.calendar) return;
@@ -572,6 +580,22 @@
     return out;
   }
 
+  /** Vorlaufzeit in ms, ab der ein Termin als "gleich" (gelb) gilt. */
+  function soonMs() {
+    var m = +S.settings.event_soon_minutes;
+    return m > 0 ? m * 60000 : 0;
+  }
+
+  /** 'current' (läuft, rot), 'soon' (beginnt bald, gelb), 'past' oder ''. */
+  function eventPhase(ev, nowMs) {
+    if (ev.all_day) return '';
+    var s = new Date(ev.start).getTime(), e = new Date(ev.end).getTime();
+    if (e <= nowMs) return 'past';
+    if (s <= nowMs) return 'current';
+    var lead = soonMs();
+    return lead && s - nowMs <= lead ? 'soon' : '';
+  }
+
   function renderSummary() {
     var t = today();
     var nowMin = t.h * 60 + t.mi;
@@ -582,7 +606,7 @@
     var items = summaryTasks();
     var sig = JSON.stringify(evs) + '|' +
       JSON.stringify(items.map(function (x) { return [x.t, x.proj.name, x.proj.section, x.proj.color]; })) +
-      '|' + t.key + '|' + nowMin + '|' + !!cal + '|' + !!S.tasks;
+      '|' + t.key + '|' + nowMin + '|' + soonMs() + '|' + !!cal + '|' + !!S.tasks;
     if (sig === S.sig.summary) return;
     S.sig.summary = sig;
 
@@ -598,11 +622,9 @@
     if (!cal) evBox.appendChild(el('div', 'sum-empty', 'Kalender wird geladen …'));
     else if (!sorted.length) evBox.appendChild(el('div', 'sum-empty', 'Heute keine Termine'));
     sorted.forEach(function (ev) {
-      var s = new Date(ev.start).getTime(), e = new Date(ev.end).getTime();
-      var running = !ev.all_day && s <= nowMs && nowMs < e;
-      var cls = 'sum-ev' + (ev.busy === false ? ' free' : '');
-      if (!ev.all_day && e <= nowMs) cls += ' past';
-      else if (running) cls += ' current';
+      var phase = eventPhase(ev, nowMs);
+      var running = phase === 'current';
+      var cls = 'sum-ev' + (ev.busy === false ? ' free' : '') + (phase ? ' ' + phase : '');
       var row = el('div', cls);
       var time = el('div', 'sum-ev-time');
       if (ev.all_day) {
@@ -617,6 +639,10 @@
       body.appendChild(el('div', 'sum-ev-title', ev.title || '(ohne Titel)'));
       var sub = [];
       if (running) sub.push('läuft gerade');
+      else if (phase === 'soon') {
+        var mins = Math.max(1, Math.ceil((new Date(ev.start).getTime() - nowMs) / 60000));
+        sub.push('beginnt in ' + mins + ' Min.');
+      }
       if (ev.location) sub.push(ev.location);
       if (sub.length) body.appendChild(el('div', 'sum-ev-sub', sub.join(' · ')));
       row.appendChild(body);
@@ -758,7 +784,7 @@
 
   function defaultView() {
     var v = S.settings.default_view;
-    return v === 'calendar' || v === 'summary' ? v : 'tasks';
+    return v === 'calendar' || v === 'tasks' ? v : 'summary';
   }
 
   function onIdle() {

@@ -34,6 +34,7 @@
 
   /* Fest: roter "Jetzt"-Strich */
   --now-color: #EF4B43;
+  --soon-color: #F5B800;
 
   /* Prioritäts- und Statusfarben (werden aus /api/settings überschrieben) */
   --priority-4: #FF5A5F; /* p1 */
@@ -536,6 +537,16 @@ main { flex: 1; min-height: 0; position: relative; }
   color: var(--md-sys-color-on-surface);
 }
 .event.past { opacity: .6; }
+.event.soon {
+  background: var(--task-today-bg);
+  border-color: var(--soon-color);
+  color: var(--md-sys-color-on-surface);
+}
+.event.current {
+  background: var(--task-overdue-bg);
+  border-color: var(--now-color);
+  color: var(--md-sys-color-on-surface);
+}
 .event .ev-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event .ev-sub {
   font-size: var(--md-sys-typescale-label-medium-size);
@@ -667,11 +678,11 @@ main { flex: 1; min-height: 0; position: relative; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sum-ev.past { opacity: .5; }
-.sum-ev.current {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-}
+.sum-ev.soon { background: var(--task-today-bg); }
+.sum-ev.soon .sum-ev-bar { background: var(--soon-color); }
+.sum-ev.current { background: var(--task-overdue-bg); }
 .sum-ev.current .sum-ev-bar { background: var(--now-color); }
+.sum-ev.soon .sum-ev-sub, .sum-ev.soon .end,
 .sum-ev.current .sum-ev-sub, .sum-ev.current .end { color: inherit; opacity: .85; }
 
 .sum-prio-head {

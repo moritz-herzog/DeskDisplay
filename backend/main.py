@@ -269,6 +269,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def api_settings():
         d = ctx_of().cfg.display
         return {"default_view": d.default_view, "return_after_seconds": d.return_after_seconds,
+                "event_soon_minutes": d.event_soon_minutes,
                 "theme": d.theme, "priority_colors": d.priority_colors, "status_colors": d.status_colors}
 
     @app.get("/api/network")

@@ -87,8 +87,9 @@ class MqttConfig:
 
 @dataclass
 class DisplayConfig:
-    default_view: str = "tasks"
+    default_view: str = "summary"
     return_after_seconds: int = 120
+    event_soon_minutes: int = 15   # Termin so viele Minuten vor Beginn gelb markieren (0 = aus)
     theme: str = "dark"
     priority_colors: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_PRIORITY_COLORS))
     status_colors: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_STATUS_COLORS))
@@ -287,12 +288,15 @@ class Config:
         # --- display
         d = section("display", False)
         display = DisplayConfig(
-            default_view=get_str(d, "display", "default_view", "tasks"),
+            default_view=get_str(d, "display", "default_view", "summary"),
             return_after_seconds=get_int(d, "display", "return_after_seconds", 120, 0),
+            event_soon_minutes=get_int(d, "display", "event_soon_minutes", 15, 0, 240),
             theme=get_str(d, "display", "theme", "dark"),
         )
+        if display.default_view == "today":
+            display.default_view = "summary"
         if display.default_view not in ("tasks", "calendar", "summary"):
-            errors.append(f"'display.default_view' muss 'tasks', 'calendar' oder 'summary' sein (gefunden: {display.default_view!r}).")
+            errors.append(f"'display.default_view' muss 'summary' (Heute), 'tasks' oder 'calendar' sein (gefunden: {display.default_view!r}).")
         if display.theme not in ("dark", "light"):
             errors.append(f"'display.theme' muss 'dark' oder 'light' sein (gefunden: {display.theme!r}).")
         for key, defaults, allowed in (

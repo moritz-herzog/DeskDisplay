@@ -101,7 +101,7 @@ def test_manual_mode_persists_in_state_file(tmp_path):
 
 def test_settings_and_health(client):
     s = client.get("/api/settings").json()
-    assert s["default_view"] == "tasks" and s["theme"] == "dark" and s["return_after_seconds"] == 120
+    assert s["default_view"] == "summary" and s["event_soon_minutes"] == 15 and s["theme"] == "dark" and s["return_after_seconds"] == 120
     assert s["priority_colors"]["p1"] == "#FF5A5F" and s["status_colors"]["busy"] == "#C62828"
     h = client.get("/api/health").json()
     assert h["mqtt"] == {"enabled": False, "connected": False}
